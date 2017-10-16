@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<app version="1">
+	<name>Some YAWMM Mod</name>
+	<version>1.0</version>
+	<coder>various</coder>
+	<short_description>Install\Uninstall WADs</short_description>
+	<long_description>Press the "A" key to (un)install WADs. 
+If no files are selected for batch (un)installation, the normal individual (un)installation menu appears. 
+If at least one file is selected, the batch (un)installation menu appears. 
+
+Press the "+" button to add\remove the selected WAD to the batch installer list
+Press the "-" button to add\remove the selected WAD to batch uninstaller list
+Press the "1" key to enter the extension menu 
+
+A "+" before the name means the WAD will be installed
+A "-" before the name means the WAD will be uninstalled</long_description>
+<ahb_access/>
+</app>
+
