@@ -13,6 +13,8 @@
 /* Variables */
 static const char certs_fs[] ATTRIBUTE_ALIGN(32) = "/sys/cert.sys";
 
+u32 boot2version;
+
 void __Sys_ResetCallback(void)
 {
 	/* Reboot console */
