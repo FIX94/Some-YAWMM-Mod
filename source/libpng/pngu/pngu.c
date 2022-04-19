@@ -11,7 +11,7 @@ More info : http://frontier-dev.net
 #include <malloc.h>
 #include "pngu.h"
 #include <png.h>
-
+#include <string.h>
 
 // Constants
 #define PNGU_SOURCE_BUFFER			1

@@ -1,7 +1,7 @@
 #ifndef _SYS_H_
 #define _SYS_H_
 
-u32 boot2version;
+extern u32 boot2version;
 /* Prototypes */
 bool isIOSstub(u8 ios_number);
 bool loadIOS(int ios);

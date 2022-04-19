@@ -12,8 +12,8 @@
 
 /* Variables */
 static const char certs_fs[] ATTRIBUTE_ALIGN(32) = "/sys/cert.sys";
-
-void __Sys_ResetCallback(void)
+u32 boot2version;
+void __Sys_ResetCallback(__attribute__((unused)) u32 irq, __attribute__((unused)) void *ctx)
 {
 	/* Reboot console */
 	Sys_Reboot();
