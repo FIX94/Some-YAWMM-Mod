@@ -72,7 +72,7 @@ u64 get_title_ios(u64 title) {
 			
 			//printf("Error! ES_GetStoredTMDSize: %d\n", ret);
 					
-			sprintf(filepath, "/title/%08lx/%08lx/content/title.tmd", TITLE_UPPER(title), TITLE_LOWER(title));
+			sprintf(filepath, "/title/%08x/%08x/content/title.tmd", TITLE_UPPER(title), TITLE_LOWER(title));
 			
 			ret = ISFS_Open(filepath, ISFS_OPEN_READ);
 			if (ret <= 0)
@@ -326,7 +326,7 @@ s32 Wad_Install(FILE *fp)
 	
 	if(TITLE_LOWER(tmd_data->sys_version) != 0 && isIOSstub(TITLE_LOWER(tmd_data->sys_version)))
 	{
-		printf("\n    This Title wants IOS%li but the installed version\n    is a stub.\n", TITLE_LOWER(tmd_data->sys_version));
+		printf("\n    This Title wants IOS%i but the installed version\n    is a stub.\n", TITLE_LOWER(tmd_data->sys_version));
 		ret = -999;
 		goto err;
 	}
@@ -448,7 +448,7 @@ s32 Wad_Install(FILE *fp)
 
 		Con_ClearLine();
 
-		printf("\r\t\t>> Installing content #%02ld...", content->cid);
+		printf("\r\t\t>> Installing content #%02d...", content->cid);
 		fflush(stdout);
 
 		/* Encrypted content size */

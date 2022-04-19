@@ -46,14 +46,14 @@ void Con_ClearLine(void)
 void Con_FgColor(u32 color, u8 bold)
 {
 	/* Set foreground color */
-	printf("\x1b[%lu;%um", color + 30, bold);
+	printf("\x1b[%u;%um", color + 30, bold);
 	fflush(stdout);
 }
 
 void Con_BgColor(u32 color, u8 bold)
 {
 	/* Set background color */
-	printf("\x1b[%lu;%um", color + 40, bold);
+	printf("\x1b[%u;%um", color + 40, bold);
 	fflush(stdout);
 }
 
@@ -63,7 +63,7 @@ void Con_FillRow(u32 row, u32 color, u8 bold)
 	u32 cnt;
 
 	/* Set color */
-	printf("\x1b[%lu;%um", color + 40, bold);
+	printf("\x1b[%u;%um", color + 40, bold);
 	fflush(stdout);
 
 	/* Get console metrics */
@@ -74,7 +74,7 @@ void Con_FillRow(u32 row, u32 color, u8 bold)
 	fflush(stdout);
 
 	/* Move to specified row */
-	printf("\x1b[%lu;0H", row);
+	printf("\x1b[%u;0H", row);
 	fflush(stdout);
 
 	/* Fill row */
