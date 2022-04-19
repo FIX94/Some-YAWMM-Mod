@@ -108,8 +108,7 @@ s32 Title_GetList(u64 **outbuf, u32 *outlen)
 
 err:
 	/* Free memory */
-	if (titles)
-		free(titles);
+	free(titles);
 
 	return ret;
 }
@@ -144,8 +143,7 @@ s32 Title_GetTicketViews(u64 tid, tikview **outbuf, u32 *outlen)
 
 err:
 	/* Free memory */
-	if (views)
-		free(views);
+	free(views);
 
 	return ret;
 }
@@ -180,8 +178,7 @@ s32 Title_GetTMD(u64 tid, signed_blob **outbuf, u32 *outlen)
 
 err:
 	/* Free memory */
-	if (p_tmd)
-		free(p_tmd);
+	free(p_tmd);
 
 	return ret;
 }
@@ -317,8 +314,7 @@ s32 Title_GetIOSVersions(u8 **outbuf, u32 *outlen)
 
 out:
 	/* Free memory */
-	if (list)
-		free(list);
+	free(list);
 
 	return ret;
 }

@@ -239,8 +239,7 @@ s32 __Wad_GetTitleID(FILE *fp, wadHeader *header, u64 *tid)
 
 out:
 	/* Free memory */
-	if (p_tik)
-		free(p_tik);
+	free(p_tik);
 
 	return ret;
 }
@@ -511,16 +510,11 @@ err:
 
 out:
 	/* Free memory */
-	if (header)
-		free(header);
-	if (p_certs)
-		free(p_certs);
-	if (p_crl)
-		free(p_crl);
-	if (p_tik)
-		free(p_tik);
-	if (p_tmd)
-		free(p_tmd);
+	free(header);
+	free(p_certs);
+	free(p_crl);
+	free(p_tik);
+	free(p_tmd);
 
 	return ret;
 }
@@ -671,7 +665,6 @@ s32 Wad_Uninstall(FILE *fp)
 
 out:
 	/* Free memory */
-	if (header)
-		free(header);
+	free(header);
 	return ret;
 }

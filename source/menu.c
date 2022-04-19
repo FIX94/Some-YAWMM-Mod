@@ -796,11 +796,8 @@ void Menu_WadList(void)
 
 	/* Retrieve filelist */
 getList:
-    if (fileList)
-    {
-        free (fileList);
-        fileList = NULL;
-    }
+    free (fileList);
+    fileList = NULL;
 
 	ret = __Menu_RetrieveList(tmpPath, &fileList, &fileCnt);
 	if (ret < 0) {
