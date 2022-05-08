@@ -257,6 +257,11 @@ void __Wad_FixTicket(signed_blob *p_tik)
 	 Title_FakesignTik(p_tik);
 }
 
+// Some of the safety checks can block region changing
+// Entering the Konami code turns this true, so it will
+// skip the problematic checks for region changing.
+bool skipRegionSafetyCheck = false;
+
 s32 Wad_Install(FILE *fp)
 {
 	wadHeader   *header  = NULL;
@@ -287,7 +292,7 @@ s32 Wad_Install(FILE *fp)
 		goto out;
 	}
 	
- /* WAD certificates */
+	/* WAD certificates */
 	ret = __Wad_ReadAlloc(fp, (void *)&p_certs, offset, header->certs_len);
 	if (ret >= 0)
 		offset += round_up(header->certs_len, 64);
@@ -379,6 +384,8 @@ s32 Wad_Install(FILE *fp)
 	
 	if (tid == TITLE_ID(1, 2))
 	{
+		if (skipRegionSafetyCheck) goto skipChecks;
+
 		if(get_sm_region_basic() == 0)
 		{
 			printf("\n    Can't get the SM region\n    Please check the site for updates\n");
@@ -400,12 +407,13 @@ s32 Wad_Install(FILE *fp)
 			ret = -999;
 			goto err;
 		}
-		if( get_sm_region_basic() != regionlist[i].region)
+		if(get_sm_region_basic() != regionlist[i].region)
 		{
 			printf("\n    I won't install the wrong regions SM\n");
 			ret = -999;
 			goto err;
 		}
+skipChecks:
 		if(tmd_data->title_version < 416)
 		{
 			if(boot2version == 4)

@@ -322,6 +322,12 @@ void Menu_FatDevice(void)
 		//Fat_Unmount(fdev);
 	//if (((fdevList[selected].mount[0] == 's') && (ndev->name[0] == 'S')))
 		//selected++;
+	static const u16 konamiCode[] = {
+		WPAD_BUTTON_UP, WPAD_BUTTON_UP, WPAD_BUTTON_DOWN, WPAD_BUTTON_DOWN, WPAD_BUTTON_LEFT,
+		WPAD_BUTTON_RIGHT, WPAD_BUTTON_LEFT, WPAD_BUTTON_RIGHT, WPAD_BUTTON_B, WPAD_BUTTON_A
+	};
+
+	int codePosition = 0;
 
 	/* Select source device */
 	if (gConfig.fatDeviceIndex < 0)
@@ -341,6 +347,13 @@ void Menu_FatDevice(void)
 			printf("\t   Press HOME button to restart.\n\n");
 
 			u32 buttons = WaitButtons();
+
+			if (buttons & (WPAD_BUTTON_UP | WPAD_BUTTON_DOWN | WPAD_BUTTON_RIGHT | WPAD_BUTTON_LEFT | WPAD_BUTTON_A | WPAD_BUTTON_B)) {
+				if (buttons & konamiCode[codePosition])
+					++codePosition;
+				else
+					codePosition = 0;
+			}
 
 			/* LEFT/RIGHT buttons */
 			if (buttons & WPAD_BUTTON_LEFT) {
@@ -367,8 +380,15 @@ void Menu_FatDevice(void)
 				Restart();
 
 			/* A button */
-			if (buttons & WPAD_BUTTON_A)
+			if (buttons & WPAD_BUTTON_A) {
+				if (codePosition == sizeof(konamiCode) / sizeof(konamiCode[0])) {
+					extern bool skipRegionSafetyCheck;
+					skipRegionSafetyCheck = true;
+					printf("[+] Disabled SM region checks\n");
+					sleep(2);
+				}
 				break;
+			}
 		}
 	}
 	else
