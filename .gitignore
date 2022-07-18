@@ -3,3 +3,7 @@
 ################################################################################
 
 /.vs
+/source/boot/build/appboot.elf.map
+/source/boot/build
+/source/boot/appboot.elf
+/source/boot/appboot.dol

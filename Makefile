@@ -100,11 +100,13 @@ export OUTPUT	:=	$(CURDIR)/$(TARGET)
 #---------------------------------------------------------------------------------
 $(BUILD):
 	@[ -d $@ ] || mkdir -p $@
+	@$(MAKE) --no-print-directory -s -C source/boot all
 	@make --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
 
 #---------------------------------------------------------------------------------
 clean:
 	@echo clean ...
+	@$(MAKE) --no-print-directory -s -C source/boot clean
 	@rm -fr $(BUILD) $(OUTPUT).elf $(OUTPUT).dol
 
 #---------------------------------------------------------------------------------
@@ -136,6 +138,10 @@ $(OUTPUT).elf: $(OFILES)
 	$(bin2o)
 
 %.dat.o	:	%.dat
+	@echo $(notdir $<)
+	$(bin2o)
+
+%.bin.o	:	%.bin
 	@echo $(notdir $<)
 	$(bin2o)
 

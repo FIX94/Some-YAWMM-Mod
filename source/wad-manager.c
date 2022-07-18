@@ -30,6 +30,7 @@ int ReadConfigFile (char *configFilePath);
 int GetIntParam (char *inputStr);
 int GetStartupPath (char *startupPath, char *inputStr);
 int GetStringParam (char *outParam, char *inputStr, int maxChars);
+int LaunchApp(const char* path, bool external);
 
 // Default password Up-Down-Left-Right-Up-Down
 //#define PASSWORD "UDLRUD"
@@ -215,7 +216,7 @@ int ReadConfigFile (char *configFilePath)
 		fdev = &fdevList[2];
 		ret = Fat_Mount(fdev);
 		snprintf(path, sizeof(path), "%s%s", fdev->mount, configFilePath);
-		snprintf(path, sizeof(path), "%s%s", fdev->mount, configFilePath);
+		//snprintf(path, sizeof(path), "%s%s", fdev->mount, configFilePath);
 	}
 	
 	if (ret < 0) 
@@ -237,7 +238,7 @@ int ReadConfigFile (char *configFilePath)
 			{
 				if (fgets (tmpStr, MAX_FILE_PATH_LEN, fptr) == NULL)
 					done = 1;
-				else if (isalpha(tmpStr[0]))
+				else if (isalpha((int)tmpStr[0]))
 				{
 					// Get the password
 					if (strncmp (tmpStr, "Password", 8) == 0)
@@ -378,14 +379,14 @@ int GetIntParam (char *inputStr)
 	i++;
 	
 	// Get to the first alpha numeric character
-	while ((isdigit(inputStr [i]) == 0) && (i < len))
+	while ((isdigit((int)inputStr[i]) == 0) && (i < len))
 	{
 		i++;
 	}
 
 	// Get the string param
 	int outCount = 0;
-	while ((isdigit(inputStr [i])) && (i < len) && (outCount < 40))
+	while ((isdigit((int)inputStr[i])) && (i < len) && (outCount < 40))
 	{
 		outParam [outCount++] = inputStr [i++];
 	}
@@ -409,14 +410,14 @@ int GetStringParam (char *outParam, char *inputStr, int maxChars)
 	i++;
 	
 	// Get to the first alpha character
-	while ((isalpha(inputStr [i]) == 0) && (i < len))
+	while ((isalpha((int)inputStr[i]) == 0) && (i < len))
 	{
 		i++;
 	}
 	
 	// Get the string param
 	int outCount = 0;
-	while ((isalnum(inputStr [i])) && (i < len) && (outCount < maxChars))
+	while ((isalnum((int)inputStr[i])) && (i < len) && (outCount < maxChars))
 	{
 		outParam [outCount++] = inputStr [i++];
 	}
