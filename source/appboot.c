@@ -82,12 +82,6 @@ void LaunchApp(void)
 	DCFlushRange((u8*)0x93000000, appboot_bin_size);
 	entry = (entrypoint)0x93000000;
 
-	u32 dumdum = 0;
-	SYS_ResetSystem(SYS_SHUTDOWN, 0, 0);
-	_CPU_ISR_Disable(dumdum);
-	__exception_closeall();
 	Jump(entry);
-	_CPU_ISR_Restore(dumdum);
-
 	Sys_LoadMenu();
 }
