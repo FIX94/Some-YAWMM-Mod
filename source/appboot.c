@@ -2,18 +2,21 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <malloc.h>
 #include <ogc/machine/processor.h>
 #include <ogc/lwp_threads.h>
 
 #include "fat.h"
 #include "sys.h"
-#include "wpad.h"
+#include "appmetadata.h"
 
 extern void __exception_closeall();
 
-//struct __argv arguments;
-//char* m_argv[MAX_ARGV];
-//u8* m_Buffer = NULL;
+struct __argv arguments;
+char* m_argv[256];
+
+u8* metaBuffer = NULL;
+u32 metaSize = 0;
 
 u8* appBuffer = NULL;
 u32 appSize = 0;
@@ -45,27 +48,48 @@ bool LoadApp(const char* path)
 {
 	appBuffer = (u8*)0x92000000;
 	
-	FILE* f = fopen(path, "rb");
+	char currentPath[256];
+	snprintf(currentPath, sizeof(currentPath), "%s/boot.dol", path);
+	
+	FILE* f = fopen(currentPath, "rb");
 
 	if (f == NULL)
-		return false;
+	{
+		snprintf(currentPath, sizeof(currentPath), "%s/boot.elf", path);
+		f = fopen(currentPath, "rb");
+
+		if (f == NULL)
+			return false;
+	}
 
 	fseek(f, 0, SEEK_END);
-	u32 size = ftell(f);
+	appSize = ftell(f);
 	rewind(f);
 
-	if (size > 0x1000000)
+	if (appSize > 0x1000000)
 	{
 		fclose(f);
 		return false;
 	}
 		
-	u32 ret = fread(appBuffer, 1, size, f);
-	DCFlushRange(appBuffer, (size + 31) & (~31));
+	u32 ret = fread(appBuffer, 1, appSize, f);
+	DCFlushRange(appBuffer, (appSize + 31) & (~31));
 
 	fclose(f);
 
-	return (ret == size);
+	snprintf(currentPath, sizeof(currentPath), "%s/meta.xml", path);
+	u16 argumentsSize = 0;
+	char* Arguments = LoadArguments(currentPath, &argumentsSize);
+	
+	if (Arguments)
+	{
+		*(vu32*)0x91000000 = argumentsSize;
+		memcpy((void*)0x91000020, Arguments, argumentsSize);
+		DCFlushRange((u8*)0x91000020, argumentsSize);
+		free(Arguments);
+	}
+
+	return (ret == appSize);
 }
 
 u8* GetApp(u32* size)

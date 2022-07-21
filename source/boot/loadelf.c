@@ -19,15 +19,10 @@ bool ExecIsElf(void* address)
 
 u32 LoadElf(void* address)
 {
-    //u8* strtab = 0;
-    //u8* image;
     int i;
 
     struct Elf32_Ehdr* ehdr = (struct Elf32_Ehdr*)address;
     struct Elf32_Shdr* shdr = (struct Elf32_Shdr*)(address + ehdr->e_shoff + (ehdr->e_shstrndx * sizeof(struct Elf32_Shdr)));
-
-    //if (shdr->sh_type == SHT_STRTAB)
-    //    strtab = (u8*)(addr + shdr->sh_offset);
 
     for (i = 0; i < ehdr->e_shnum; i++) 
     {

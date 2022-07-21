@@ -29,6 +29,14 @@ typedef volatile signed long long vs64;
 typedef s32 size_t;
 typedef u32 u_int32_t;
 
+
+struct Arguments
+{
+	int magic;
+	char* cmdLine;
+	int length;
+};
+
 #define NULL 		((void*)0)
 #define true 		1
 #define false		0
