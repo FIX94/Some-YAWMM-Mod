@@ -6,19 +6,18 @@
 #define ENTRIES_PER_PAGE	14
 #define MAX_FILE_PATH_LEN	1024
 #define MAX_DIR_LEVELS		10
-#define WAD_DIRECTORY		"/"
-#define WAD_ROOT_DIRECTORY  "/wad"
+#define ROOT_DIRECTORY		"/"
 
 #define MAX_PASSWORD_LENGTH  	10
 #define MAX_FAT_DEVICE_LENGTH  	10
 #define MAX_NAND_DEVICE_LENGTH  10
 
-#define WM_CONFIG_FILE_PATH ":/wad/wm_config.txt"
-#define WM_BACKGROUND_PATH ":/wad/background.png"
+#define WM_CONFIG_FILE_PATH ":apps/yawmme/yawmme_config.txt"
+#define WM_BACKGROUND_PATH ":apps/yawmme/yawmme_background.png"
 
 // These are indices into the fatDevice fdevList
 #define FAT_DEVICE_INDEX_WII_SD  0
-#define FAT_DEVICE_INDXE_USB     1
+#define FAT_DEVICE_INDEX_USB     1
 #define FAT_DEVICE_INDEX_USB2    2
 #define FAT_DEVICE_INDEX_GC_SDA  3
 #define FAT_DEVICE_INDEX_GC_SDB  4
@@ -53,6 +52,5 @@ typedef struct
 extern CONFIG gConfig;
 extern nandDevice ndevList[];
 extern fatDevice fdevList[];
-
 
 #endif

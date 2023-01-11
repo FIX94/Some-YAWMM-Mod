@@ -77,17 +77,17 @@ bool LoadApp(const char* path)
 
 	fclose(f);
 
-	snprintf(currentPath, sizeof(currentPath), "%s/meta.xml", path);
-	u16 argumentsSize = 0;
-	char* Arguments = LoadArguments(currentPath, &argumentsSize);
+	//snprintf(currentPath, sizeof(currentPath), "%s/meta.xml", path);
+	//u16 argumentsSize = 0;
+	//char* Arguments = LoadArguments(currentPath, &argumentsSize);
 	
-	if (Arguments)
-	{
-		*(vu32*)0x91000000 = argumentsSize;
-		memcpy((void*)0x91000020, Arguments, argumentsSize);
-		DCFlushRange((u8*)0x91000020, argumentsSize);
-		free(Arguments);
-	}
+	//if (Arguments)
+	//{
+	//	*(vu32*)0x91000000 = argumentsSize;
+	//	memcpy((void*)0x91000020, Arguments, argumentsSize);
+	//	DCFlushRange((u8*)0x91000020, argumentsSize);
+	//	free(Arguments);
+	//}
 
 	return (ret == appSize);
 }

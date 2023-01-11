@@ -34,6 +34,9 @@ typedef struct {
 	/* Filestat */
 	bool isdir;
 	size_t fsize;
+	int iswad;
+	int isdol;
+	int iself;
 } fatFile;
 
 

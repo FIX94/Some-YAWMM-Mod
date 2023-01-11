@@ -30,7 +30,8 @@ int ReadConfigFile (char *configFilePath);
 int GetIntParam (char *inputStr);
 int GetStartupPath (char *startupPath, char *inputStr);
 int GetStringParam (char *outParam, char *inputStr, int maxChars);
-int LaunchApp(const char* path, bool external);
+void __exception_setreload(int t);
+
 
 // Default password Up-Down-Left-Right-Up-Down
 //#define PASSWORD "UDLRUD"
@@ -175,14 +176,14 @@ int main(int argc, char **argv)
 	WIILIGHT_Init();
 
 	/* Print disclaimer */
-	//Disclaimer();
-	
+	Disclaimer();
+	Con_Clear();
 	// Set the defaults
 	SetDefaultConfig ();
-
+	printf("\r\t>> Loading config file ....");
 	// Read the config file
 	ReadConfigFile (WM_CONFIG_FILE_PATH);
-
+	printf("Complete .\n\n\n");
 	// Check password
 	CheckPassword ();
 
@@ -325,7 +326,7 @@ void SetDefaultConfig (void)
 	gConfig.password [0] = 0;
 	
 	// Default startup folder
-	strcpy (gConfig.startupPath, WAD_ROOT_DIRECTORY);
+	strcpy (gConfig.startupPath, ROOT_DIRECTORY);
 	
 	gConfig.cIOSVersion = CIOS_VERSION_INVALID;            // Means that user has to select later
 	gConfig.fatDeviceIndex = FAT_DEVICE_INDEX_INVALID;     // Means that user has to select
