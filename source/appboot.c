@@ -4,11 +4,15 @@
 #include <string.h>
 #include <malloc.h>
 #include <ogc/machine/processor.h>
+#include <ogcsys.h>
 #include <ogc/lwp_threads.h>
 
+#include "appboot.h"
 #include "fat.h"
 #include "sys.h"
 #include "appmetadata.h"
+#include "iospatch.h"
+#include "video.h"
 
 extern void __exception_closeall();
 
@@ -20,35 +24,83 @@ u32 metaSize = 0;
 
 u8* appBuffer = NULL;
 u32 appSize = 0;
-
-typedef void (*entrypoint)();
 u32 appEntry = 0;
+
+u32 appIos = 0;
 
 #include "appboot_bin.h"
 
-static void Jump(entrypoint EntryPoint)
-{
-	appEntry = (u32)EntryPoint;
+#define MEM2PROT 0x0D8B420A
+#define ESMODULESTART (u16*)0x939F0000
 
-	u32 level = IRQ_Disable();
-	__IOS_ShutdownSubsystems();
-	__exception_closeall();
-	__lwp_thread_closeall();
-	asm volatile (
-		"lis %r3, appEntry@h\n"
-		"ori %r3, %r3, appEntry@l\n"
-		"lwz %r3, 0(%r3)\n"
-		"mtlr %r3\n"
-		"blr\n"
-		);
-	IRQ_Restore(level);
+static const u16 ticket[] = {
+	0x685B,               // ldr r3,[r3,#4] ; get TMD pointer
+	0x22EC, 0x0052,       // movls r2, 0x1D8
+	0x189B,               // adds r3, r3, r2; add offset of access rights field in TMD
+	0x681B,               // ldr r3, [r3]   ; load access rights (haxxme!)
+	0x4698,               // mov r8, r3  ; store it for the DVD video bitcheck later
+	0x07DB                // lsls r3, r3, #31; check AHBPROT bit
+};
+
+static bool patchahbprot(void)
+{
+	u16* patch;
+
+	if ((read32(0x0D800064) == 0xFFFFFFFF) ? 1 : 0) 
+	{
+		write16(MEM2PROT, 2);
+		for (patch = ESMODULESTART; patch < ESMODULESTART + 0x4000; ++patch) {
+			if (!memcmp(patch, ticket, sizeof(ticket)))
+			{
+				patch[4] = 0x23FF;
+				DCFlushRange(patch + 4, 2);
+				return 0;
+			}
+		}
+		return -1;
+	}
+	else {
+		return -2;
+	}
 }
 
 bool LoadApp(const char* path)
 {
+	Con_Clear();
+
 	appBuffer = (u8*)0x92000000;
 	
 	char currentPath[256];
+	snprintf(currentPath, sizeof(currentPath), "%s/meta.xml", path);
+	u16 argumentsSize = 0;
+	char* Arguments = LoadArguments(currentPath, &argumentsSize);
+
+	if (Arguments)
+	{
+		*(vu32*)0x91000000 = argumentsSize;
+		memcpy((void*)0x91000020, Arguments, argumentsSize);
+		DCFlushRange((void*)0x91000020, argumentsSize);
+		ICInvalidateRange((void*)0x91000020, argumentsSize);
+		free(Arguments);
+	}
+	else
+	{
+		*(vu32*)0x91000000 = 0;
+	}
+
+	struct MetaData* appData = LoadMetaData(currentPath);
+
+	if (appData)
+	{
+		printf("-> App title: %s version %s\n", appData->name, appData->version);
+		printf("-> Coder(s): %s\n", appData->coder);
+		if (appData->releaseDate != NULL)
+			printf("-> Release date: %s\n", appData->releaseDate);
+		FreeMetaData(appData);
+
+		printf("\n");
+	}
+
 	snprintf(currentPath, sizeof(currentPath), "%s/boot.dol", path);
 	
 	FILE* f = fopen(currentPath, "rb");
@@ -62,6 +114,8 @@ bool LoadApp(const char* path)
 			return false;
 	}
 
+	printf("-> Load: %s\n", currentPath);
+
 	fseek(f, 0, SEEK_END);
 	appSize = ftell(f);
 	rewind(f);
@@ -73,22 +127,21 @@ bool LoadApp(const char* path)
 	}
 		
 	u32 ret = fread(appBuffer, 1, appSize, f);
-	DCFlushRange(appBuffer, (appSize + 31) & (~31));
-
-	fclose(f);
-
-	snprintf(currentPath, sizeof(currentPath), "%s/meta.xml", path);
-	u16 argumentsSize = 0;
-	char* Arguments = LoadArguments(currentPath, &argumentsSize);
-	
-	if (Arguments)
+	if (ret != appSize)
 	{
-		*(vu32*)0x91000000 = argumentsSize;
-		memcpy((void*)0x91000020, Arguments, argumentsSize);
-		DCFlushRange((u8*)0x91000020, argumentsSize);
-		free(Arguments);
+		printf("Failed to read file: %s (0x%X -> 0x%X)\n", currentPath, ret, appSize );
+		fclose(f);
+		return false;
+	}
+	else
+	{
+		printf("-> App size: 0x%X\n\n", appSize);
 	}
 
+	DCFlushRange(appBuffer, appSize);
+	ICInvalidateRange(appBuffer, appSize);
+
+	fclose(f);
 	return (ret == appSize);
 }
 
@@ -99,13 +152,74 @@ u8* GetApp(u32* size)
 }
 
 void LaunchApp(void)
-{
-	entrypoint entry;
+{	
+	entrypoint entry = NULL;
+	
+	LoadBooter(&entry);
+	
+	if (!appIos)
+		appIos = IOS_GetPreferredVersion();
+	
+	if (AHBPROT_DISABLED)
+	{
+		if (appIos > 0 && appIos < 200)
+		{
+			printf("-> Patch IOS for AHB access\n");
+			patchahbprot();
+		}	
+	}
 
-	memcpy((u8*)0x93000000, appboot_bin, appboot_bin_size);
-	DCFlushRange((u8*)0x93000000, appboot_bin_size);
-	entry = (entrypoint)0x93000000;
+	if (appIos > 0)
+		__IOS_LaunchNewIOS(appIos);
 
-	Jump(entry);
+	if (AHBPROT_DISABLED)
+	{
+		printf("-> Reenable DVD access\n");
+		mask32(0x0D800180, 1 << 21, 0);
+	}
+
+	printf("-> And we're outta here!\n");
+	
+	*(vu32*)0x800000F8 = 0x0E7BE2C0; // Bus Speed
+	*(vu32*)0x800000FC = 0x2B73A840; // CPU Speed
+
+	//SYS_ResetSystem(SYS_SHUTDOWN, 0, 0);
+	__exception_closeall();
+	entry();
+
+	printf("--> Well.. this shouldn't happen\n");
 	Sys_LoadMenu();
+}
+
+void SetIos(int ios)
+{
+	appIos = ios;
+}
+
+bool LoadBooter(entrypoint* entry)
+{
+	dolhdr* dol = (dolhdr*)appboot_bin;
+
+	u32 i;
+	for (i = 0; i < 7; i++)
+	{
+		if (dol->sizeText[i] == 0 || dol->addressText[i] < 0x100)
+			continue;
+
+		memmove((void*)dol->addressText[i], appboot_bin + dol->offsetText[i], dol->sizeText[i]);
+		DCFlushRange((void*)dol->addressText[i], dol->sizeText[i]);
+	}
+
+	for (i = 0; i < 11; i++)
+	{
+		if (dol->sizeData[i] == 0)
+			continue;
+
+		memmove((void*)dol->addressData[i], appboot_bin + dol->offsetData[i], dol->sizeData[i]);
+		DCFlushRange((void*)dol->addressData[i], dol->sizeData[i]);
+	}
+
+	*entry = (entrypoint)dol->entrypoint;
+
+	return true;
 }

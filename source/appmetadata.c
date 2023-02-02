@@ -74,14 +74,21 @@ struct MetaData* LoadMetaData(const char* path)
 	metaData->shortDescription = strdup(GetStringValue(app, "short_description"));
 	metaData->longDescription = strdup(GetStringValue(app, "long_description"));
 
-	char release[40];
+	char release[20];
 	memset(release, 0, sizeof(release));
 	snprintf(release, sizeof(release), "%s", GetStringValue(app, "release_date"));
-
+	
+	metaData->releaseDate = NULL;
 	if (strlen(release) == 14)
+	{
 		snprintf(release, sizeof(release), "%c%c/%c%c/%c%c%c%c", release[4], release[5], release[6], release[7], release[0], release[1], release[2], release[3]);
-	else if (strlen(release) == 14)
+		metaData->releaseDate = strdup(release);
+	}	
+	else if (strlen(release) == 12)
+	{
 		snprintf(release, sizeof(release), "%c%c/%c%c%c%c", release[4], release[5], release[0], release[1], release[2], release[3]);
+		metaData->releaseDate = strdup(release);
+	}
 
 	metaData->releaseDate = strdup(release);
 	mxmlDelete(meta);
@@ -122,9 +129,9 @@ char* LoadArguments(const char* path, u16* length)
 		return NULL;
 	}
 
-	app = mxmlFindElement(app, app, "arguments", NULL, NULL, MXML_DESCEND_FIRST);
+	mxml_node_t* arguments = mxmlFindElement(app, app, "arguments", NULL, NULL, MXML_DESCEND_FIRST);
 
-	if (!app)
+	if (!arguments)
 	{
 		mxmlDelete(meta);
 		return NULL;
@@ -133,7 +140,7 @@ char* LoadArguments(const char* path, u16* length)
 	mxml_node_t* arg;
 	u16 size = 0;
 	
-	for (arg = mxmlFindElement(app, app, "arg", NULL, NULL, MXML_DESCEND_FIRST); arg != NULL; arg = mxmlFindElement(arg, app, "arg", NULL, NULL, MXML_NO_DESCEND))
+	for (arg = mxmlFindElement(arguments, arguments, "arg", NULL, NULL, MXML_DESCEND_FIRST); arg != NULL; arg = mxmlFindElement(arg, arguments, "arg", NULL, NULL, MXML_NO_DESCEND))
 	{
 		char* current = GetArgumentValue(arg);
 
@@ -156,7 +163,7 @@ char* LoadArguments(const char* path, u16* length)
 	char* argStr = malloc(size);
 	size = 0;
 
-	for (arg = mxmlFindElement(app, app, "arg", NULL, NULL, MXML_DESCEND_FIRST); arg != NULL; arg = mxmlFindElement(arg, app, "arg", NULL, NULL, MXML_NO_DESCEND))
+	for (arg = mxmlFindElement(arguments, arguments, "arg", NULL, NULL, MXML_DESCEND_FIRST); arg != NULL; arg = mxmlFindElement(arg, arguments, "arg", NULL, NULL, MXML_NO_DESCEND))
 	{
 		char* current = GetArgumentValue(arg);
 
@@ -172,6 +179,8 @@ char* LoadArguments(const char* path, u16* length)
 			size += strlen(current);
 		}
 	}
+
+	mxmlDelete(meta);
 	
 	argStr[size] = 0;
 	*length = size;

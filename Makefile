@@ -100,7 +100,9 @@ export OUTPUT	:=	$(CURDIR)/$(TARGET)
 #---------------------------------------------------------------------------------
 $(BUILD):
 	@[ -d $@ ] || mkdir -p $@
-	@$(MAKE) --no-print-directory -s -C source/boot all
+	@$(MAKE) --no-print-directory -s -C source/boot
+	@mv -u $(CURDIR)/source/boot/appboot.bin \
+		$(CURDIR)/data/appboot.bin
 	@make --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
 
 #---------------------------------------------------------------------------------
