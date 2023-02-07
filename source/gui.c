@@ -12,7 +12,7 @@
 #define CONSOLE_XCOORD		70
 #define CONSOLE_YCOORD		118
 #define CONSOLE_WIDTH		502
-#define CONSOLE_HEIGHT		320
+#define CONSOLE_HEIGHT		300
 
 bool file_exists(const char * filename)
 {

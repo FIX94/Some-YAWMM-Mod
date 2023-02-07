@@ -20,6 +20,7 @@
 #include <ogc/pad.h>
 #include "globals.h"
 #include "iospatch.h"
+#include "appboot.h"
 
 /* FAT device list  */
 //static fatDevice fdevList[] = {
@@ -29,7 +30,6 @@ fatDevice fdevList[] = {
 	{ "usb2",	"USB 2.0 Mass Storage Device",	&__io_wiiums },
 	{ "gcsda",	"SD Gecko (Slot A)",			&__io_gcsda },
 	{ "gcsdb",	"SD Gecko (Slot B)",			&__io_gcsdb },
-	//{ "smb",	"SMB share",					NULL },
 };
 
 /* NAND device list */
@@ -159,6 +159,9 @@ s32 __Menu_RetrieveList(char *inPath, fatFile **outbuf, u32 *outlen)
 		{
 			bool addFlag = false;
 			bool isdir = false;
+			bool isdol = false;
+			bool iself = false;
+			bool iswad = false;
 			size_t fsize = 0;
 
 			snprintf(gFileName, MAX_FILE_PATH_LEN, "%s/%s", inPath, ent->d_name);
@@ -180,6 +183,19 @@ s32 __Menu_RetrieveList(char *inPath, fatFile **outbuf, u32 *outlen)
 					{
 						fsize = __GetFileSizeBytes(gFileName);
 						addFlag = true;
+						iswad = true;
+					}
+					if(!strcasecmp(ent->d_name+strlen(ent->d_name)-4, ".dol"))
+					{
+						fsize = __GetFileSizeBytes(gFileName);
+						addFlag = true;
+						isdol = true;
+					}
+					if(!strcasecmp(ent->d_name+strlen(ent->d_name)-4, ".elf"))
+					{
+						fsize = __GetFileSizeBytes(gFileName);
+						addFlag = true;
+						iself = true;
 					}
 				}
 			}
@@ -194,7 +210,9 @@ s32 __Menu_RetrieveList(char *inPath, fatFile **outbuf, u32 *outlen)
 				/* File stats */
 				file->isdir = isdir;
 				file->fsize = fsize;
-
+				file->isdol = isdol;
+				file->iself = iself;
+				file->iswad = iswad;
 			}
 		}
 
@@ -385,7 +403,7 @@ void Menu_FatDevice(void)
 					extern bool skipRegionSafetyCheck;
 					skipRegionSafetyCheck = true;
 					printf("[+] Disabled SM region checks\n");
-					sleep(2);
+					sleep(3);
 				}
 				break;
 			}
@@ -408,7 +426,7 @@ void Menu_FatDevice(void)
 		goto err;
 	} else
 		printf(" OK!\n");
-
+	sleep(2);
 	return;
 
 err:
@@ -690,8 +708,8 @@ int Menu_FileOperations(fatFile *file, char *inFilePath)
 void Menu_WadManage(fatFile *file, char *inFilePath)
 {
 	FILE *fp  = NULL;
-
-	//char filepath[128];
+	
+	//char filepath[256];
 	f32  filesize;
 
 	u32  mode = 0;
@@ -702,16 +720,28 @@ void Menu_WadManage(fatFile *file, char *inFilePath)
 	for (;;) {
 		/* Clear console */
 		Con_Clear();
+		if(file->iswad) {
+			printf("[+] WAD Filename : %s\n",          file->filename);
+			printf("    WAD Filesize : %.2f MB\n\n\n", filesize);
 
-		printf("[+] WAD Filename : %s\n",          file->filename);
-		printf("    WAD Filesize : %.2f MB\n\n\n", filesize);
 
+			printf("[+] Select action: < %s WAD >\n\n", (!mode) ? "Install" : "Uninstall");
 
-		printf("[+] Select action: < %s WAD >\n\n", (!mode) ? "Install" : "Uninstall");
-
-		printf("    Press LEFT/RIGHT to change selected action.\n\n");
-
-		printf("    Press A to continue.\n");
+			printf("    Press LEFT/RIGHT to change selected action.\n\n");
+			printf("    Press A to continue.\n");
+		}
+		else {
+			if(file->isdol) {
+				printf("[+] DOL Filename : %s\n",          file->filename);
+				printf("    DOL Filesize : %.2f MB\n\n\n", filesize);
+				printf("    Press A to launch DOL.\n");
+			}
+			if(file->iself) {
+				printf("[+] ELF Filename : %s\n",          file->filename);
+				printf("    ELF Filesize : %.2f MB\n\n\n", filesize);
+				printf("    Press A to launch ELF.\n");
+			}
+		}
 		printf("    Press B to go back to the menu.\n\n");
 
 		u32 buttons = WaitButtons();
@@ -738,7 +768,7 @@ void Menu_WadManage(fatFile *file, char *inFilePath)
 	/* Generate filepath */
 	// sprintf(filepath, "%s:" WAD_DIRECTORY "/%s", fdev->mount, file->filename);
 	sprintf(gTmpFilePath, "%s/%s", inFilePath, file->filename); // wiiNinja
-
+	if(file->iswad) {
 	/* Open WAD */
 	fp = fopen(gTmpFilePath, "rb");
 	if (!fp) {
@@ -756,7 +786,15 @@ void Menu_WadManage(fatFile *file, char *inFilePath)
 	else
 		Wad_Uninstall(fp);
 	WiiLightControl (WII_LIGHT_OFF);
-
+	}
+	else {
+		printf("launch dol/elf here \n");
+		
+		if(LoadApp(inFilePath)) {
+			LaunchApp();
+		}
+		return;
+	}
 out:
 	/* Close file */
 	if (fp)
@@ -852,9 +890,9 @@ getList:
 			index = cnt-30;
 		else
 			index = 0;
-
-		printf("[+] WAD files on [%s]:\n\n", tmpPath+index);
-
+		
+		printf("[+] Files on [%s]:\n\n", tmpPath+index);
+		
 		/* Print entries */
 		for (cnt = start; cnt < fileCnt; cnt++)
 		{
@@ -872,19 +910,27 @@ getList:
 			//printf("\t%2s %s (%.2f MB)\n", (cnt == selected) ? ">>" : "  ", file->filename, filesize);
             if (file->isdir) // wiiNinja
 				printf("\t%2s [%s]\n", (cnt == selected) ? ">>" : "  ", str);
-            else
-                printf("\t%2s%s%s (%.2f MB)\n", (cnt == selected) ? ">>" : "  ", (file->install == 1) ? "+" : ((file->install == 2) ? "-" : " "), str, filesize);
-
+            else {
+                if(file->iswad)
+					printf("\t%2s%s%s (%.2f MB)\n", (cnt == selected) ? ">>" : "  ", (file->install == 1) ? "+" : ((file->install == 2) ? "-" : " "), str, filesize);
+				else
+					printf("\t%2s %s (%.2f MB)\n", (cnt == selected) ? ">>" : "  ", str, filesize);
+			}
 		}
 
 		printf("\n");
-
+		fatFile *file = &fileList[selected];
+		if(file->iswad)
 		printf("[+] Press A to (un)install.");
+		else if(file->isdol || file->iself)
+		printf("[+] Press A to launch dol/elf.");
+		else if(file->isdir)
+		printf("[+] Press A to Enter directory.");
 		if(gDirLevel>1)
 			printf(" Press B to go up-level DIR.\n");
 		else
 			printf(" Press B to select a device.\n");
-		printf("    Use +/X and -/Y to (un)mark. Press 1/Z/ZR for delete menu.");
+		if(file->iswad) printf("    Use +/X and -/Y to (un)mark. Press 1/Z/ZR for delete menu.");
 
 			/** Controls **/
 		u32 buttons = WaitButtons();
@@ -918,7 +964,7 @@ getList:
 		/* HOME button */
 		if (buttons & WPAD_BUTTON_HOME)
 			Restart();
-
+		if(file->iswad) {
 		/* Plus Button - Leathl */
 		if (buttons & WPAD_BUTTON_PLUS)
 		{
@@ -1031,6 +1077,7 @@ getList:
 			}
 		}
 
+		}
 		/* 1 Button - Leathl */
 		if (buttons & WPAD_BUTTON_1)
 		{
@@ -1158,8 +1205,6 @@ err:
 	/* Wait for button */
 	WaitButtons();
 }
-
-
 void Menu_Loop(void)
 {
 	u8 iosVersion;

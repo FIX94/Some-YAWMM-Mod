@@ -28,7 +28,7 @@ static void disable_memory_protection() {
 static u32 apply_patch(char *name, const u8 *old, u32 old_size, const u8 *patch, u32 patch_size, u32 patch_offset) {
 	u8 *ptr_start = (u8*)*((u32*)0x80003134), *ptr_end = (u8*)0x94000000;
 	u32 found = 0;
-	printf("    Patching %-30s", name);
+//	printf("    Patching %-30s", name);
 	u8 *location = NULL;
 	while (ptr_start < (ptr_end - patch_size)) {
 		if (!memcmp(ptr_start, old, old_size)) {
@@ -44,10 +44,10 @@ static u32 apply_patch(char *name, const u8 *old, u32 old_size, const u8 *patch,
 		}
 		ptr_start++;
 	}
-	if (found)
-		printf(" patched\n");
-	else
-		printf(" not patched\n");
+//	if (found)
+//		printf(" patched\n");
+//	else
+//		printf(" not patched\n");
 	return found;
 }
 /*
