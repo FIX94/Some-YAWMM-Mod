@@ -10,7 +10,7 @@
 
 /* Constants */
 #define CONSOLE_XCOORD		70
-#define CONSOLE_YCOORD		118
+#define CONSOLE_YCOORD		114
 #define CONSOLE_WIDTH		502
 #define CONSOLE_HEIGHT		300
 
@@ -46,12 +46,12 @@ s32 __Gui_DrawPng(void *img, u32 x, u32 y)
 	
 	if(!ctx)
 	{
-	/* Select PNG data */
-	ctx = PNGU_SelectImageFromBuffer(img);
-	if (!ctx) {
-		ret = -1;
-		goto out;
-	}
+		/* Select PNG data */
+		ctx = PNGU_SelectImageFromBuffer(img);
+		if (!ctx) {
+			ret = -1;
+			goto out;
+		}
 	}
 	/* Get image properties */
 	ret = PNGU_GetImageProperties(ctx, &imgProp);
@@ -84,7 +84,7 @@ void Gui_InitConsole(void)
 void Gui_DrawBackground(void)
 {
 	extern char bgData[];
-	
+
 	/* Draw background */
 	__Gui_DrawPng(bgData, 0, 0);
 } 
