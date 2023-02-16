@@ -1,19 +1,23 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <app version="1">
-	<name>yawmME</name>
+	<name>YAWM ModMii Edition</name>
 	<version>1.0</version>
-	<coder>various</coder>
-	<short_description>Install\Uninstall WADs Launch apps</short_description>
-	<long_description>Press the "A" key to (un)install WADs or Launch .dol/.elf files .
-If no files are selected for batch (un)installation, the normal individual (un)installation menu appears. 
-If at least one file is selected, the batch (un)installation menu appears. 
+	<coder>Various</coder>
+	<short_description>Manage WADs and Launch Apps</short_description>
+	<long_description>Yet Another Wad Manager ModMii Edition (yawmME)
+
+Press the "A" key to (un)install WADs or Launch .dol/.elf files.
+If no files are selected for batch (un)installation, the normal individual (un)installation menu appears.
+If at least one file is selected, the batch (un)installation menu appears.
 
 Press the "+" button to add\remove the selected WAD to the batch installer list
 Press the "-" button to add\remove the selected WAD to batch uninstaller list
 Press the "1" key to enter the extension menu 
 
 A "+" before the name means the WAD will be installed
-A "-" before the name means the WAD will be uninstalled</long_description>
+A "-" before the name means the WAD will be uninstalled
+
+To temporarily disable System Menu Region checks\protection in order region change or overwrite a custom System Menu, enter the KONAMI code instead of A when selecting your device. This should be done sparingly and only if you know what you are doing.
+</long_description>
 <ahb_access/>
 </app>
-
