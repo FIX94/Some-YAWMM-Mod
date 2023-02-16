@@ -14,8 +14,6 @@
 #include "iospatch.h"
 #include "video.h"
 
-extern void __exception_closeall();
-
 struct __argv arguments;
 char* m_argv[256];
 
@@ -178,12 +176,7 @@ void LaunchApp(void)
 	}
 
 	printf("-> And we're outta here!\n");
-	
-	*(vu32*)0x800000F8 = 0x0E7BE2C0; // Bus Speed
-	*(vu32*)0x800000FC = 0x2B73A840; // CPU Speed
 
-	//SYS_ResetSystem(SYS_SHUTDOWN, 0, 0);
-	__exception_closeall();
 	entry();
 
 	printf("--> Well.. this shouldn't happen\n");
