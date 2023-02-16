@@ -1,9 +1,10 @@
-﻿################################################################################
-# This .gitignore file was automatically created by Microsoft(R) Visual Studio.
-################################################################################
-
-/.vs
-/source/boot/build/appboot.elf.map
-/source/boot/build
-/source/boot/appboot.elf
-/source/boot/appboot.dol
+﻿*.bat
+*.dol
+*.elf
+*.exe
+.vs/
+.vscode/
+build/
+source/boot/build/
+/yawmME.zip
+/wiiload

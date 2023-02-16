@@ -1,0 +1,42 @@
+name: Build binaries
+
+on:
+  push:
+    branches:
+      - "**"
+    paths-ignore:
+      - '**.md'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/FUNDING.yml'
+      - '.github/**/*.md'
+  pull_request:
+    paths-ignore:
+      - '**.md'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/FUNDING.yml'
+      - '.github/**/*.md'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: devkitpro/devkitppc:20230110
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Compile
+        run: make
+
+      - name: Package
+        run: |
+          mkdir -p upload/apps/yawmME
+          cp boot.dol upload/apps/yawmME
+          cp boot.elf upload/apps/yawmME/yawmME_boot.elf
+          cp yawmME/icon.png upload/apps/yawmME
+          cp yawmME/meta.xml upload/apps/yawmME
+          echo "sha=$(git rev-parse --short=7 HEAD)" >> $GITHUB_ENV
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with: 
+          name: yawmME-${{ env.sha }}
+          path: upload
