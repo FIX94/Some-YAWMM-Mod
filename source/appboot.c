@@ -32,6 +32,7 @@ u32 appIos = 0;
 
 #define MEM2PROT 0x0D8B420A
 #define ESMODULESTART (u16*)0x939F0000
+#define MB_SIZE	1048576.0
 
 static const u16 ticket[] = {
 	0x685B,               // ldr r3,[r3,#4] ; get TMD pointer
@@ -64,7 +65,7 @@ static bool patchahbprot(void)
 	}
 }
 
-bool LoadApp(const char* path)
+bool LoadApp(const char* path, const char* filename)
 {
 	Con_Clear();
 
@@ -88,6 +89,8 @@ bool LoadApp(const char* path)
 		*(vu32*)0x91000000 = 0;
 	}
 
+/*
+	// This causes crashes when XML nodes are empty
 	struct MetaData* appData = LoadMetaData(currentPath);
 
 	if (appData)
@@ -100,19 +103,14 @@ bool LoadApp(const char* path)
 
 		printf("\n");
 	}
+*/
 
-	snprintf(currentPath, sizeof(currentPath), "%s/boot.dol", path);
+	snprintf(currentPath, sizeof(currentPath), "%s/%s", path, filename);
 	
 	FILE* f = fopen(currentPath, "rb");
 
 	if (f == NULL)
-	{
-		snprintf(currentPath, sizeof(currentPath), "%s/boot.elf", path);
-		f = fopen(currentPath, "rb");
-
-		if (f == NULL)
-			return false;
-	}
+		return false;
 
 	printf("-> Load: %s\n", currentPath);
 
@@ -135,7 +133,8 @@ bool LoadApp(const char* path)
 	}
 	else
 	{
-		printf("-> App size: 0x%X\n\n", appSize);
+		f32 filesize = (appSize / MB_SIZE);
+		printf("-> App size: %.2f MB\n\n", filesize);
 	}
 
 	DCFlushRange(appBuffer, appSize);

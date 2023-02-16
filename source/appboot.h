@@ -16,7 +16,7 @@ typedef struct _dolhdr
 	u32 entrypoint;
 } dolhdr;
 
-bool LoadApp(const char* path);
+bool LoadApp(const char* path, const char* filename);
 u8* GetApp(u32* size);
 void LaunchApp(void);
 void SetIos(int ios);

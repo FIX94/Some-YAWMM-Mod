@@ -664,11 +664,23 @@ int Menu_FileOperations(fatFile *file, char *inFilePath)
 	{
 		Con_Clear();
 
-		printf("[+] WAD Filename : %s\n",          file->filename);
-		printf("    WAD Filesize : %.2f MB\n\n\n", filesize);
-
-
-		printf("[+] Select action: < %s WAD >\n\n", "Delete"); //There's yet nothing else than delete
+		if(file->iswad) {
+			printf("[+] WAD Filename : %s\n", file->filename);
+			printf("    WAD Filesize : %.2f MB\n\n\n", filesize);
+			printf("[+] Select action: < %s WAD >\n\n", "Delete"); //There's yet nothing else than delete
+		}
+		else if(file->isdol) {
+			printf("[+] DOL Filename : %s\n", file->filename);
+			printf("    DOL Filesize : %.2f MB\n\n\n", filesize);
+			printf("[+] Select action: < %s DOL >\n\n", "Delete");
+		}
+		else if(file->iself) {
+			printf("[+] ELF Filename : %s\n", file->filename);
+			printf("    ELF Filesize : %.2f MB\n\n\n", filesize);
+			printf("[+] Select action: < %s ELF >\n\n", "Delete");
+		}
+		else
+			return 0;
 
 		printf("    Press LEFT/RIGHT to change selected action.\n\n");
 
@@ -721,7 +733,7 @@ void Menu_WadManage(fatFile *file, char *inFilePath)
 		/* Clear console */
 		Con_Clear();
 		if(file->iswad) {
-			printf("[+] WAD Filename : %s\n",          file->filename);
+			printf("[+] WAD Filename : %s\n", file->filename);
 			printf("    WAD Filesize : %.2f MB\n\n\n", filesize);
 
 
@@ -732,12 +744,12 @@ void Menu_WadManage(fatFile *file, char *inFilePath)
 		}
 		else {
 			if(file->isdol) {
-				printf("[+] DOL Filename : %s\n",          file->filename);
+				printf("[+] DOL Filename : %s\n", file->filename);
 				printf("    DOL Filesize : %.2f MB\n\n\n", filesize);
 				printf("    Press A to launch DOL.\n");
 			}
 			if(file->iself) {
-				printf("[+] ELF Filename : %s\n",          file->filename);
+				printf("[+] ELF Filename : %s\n", file->filename);
 				printf("    ELF Filesize : %.2f MB\n\n\n", filesize);
 				printf("    Press A to launch ELF.\n");
 			}
@@ -790,7 +802,7 @@ void Menu_WadManage(fatFile *file, char *inFilePath)
 	else {
 		printf("launch dol/elf here \n");
 		
-		if(LoadApp(inFilePath)) {
+		if(LoadApp(inFilePath, file->filename)) {
 			LaunchApp();
 		}
 		return;
