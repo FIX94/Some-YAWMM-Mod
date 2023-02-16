@@ -23,6 +23,7 @@
 CONFIG gConfig;
 
 // Prototypes
+extern void __exception_setreload(int t);
 extern u32 WaitButtons (void);
 void CheckPassword (void);
 void SetDefaultConfig (void);
@@ -146,6 +147,8 @@ void Disclaimer(void)
 
 int main(int argc, char **argv)
 {
+	__exception_setreload(10);
+
 	ES_GetBoot2Version(&boot2version);
 	if(!AHBPROT_DISABLED)
 	{
@@ -156,6 +159,7 @@ int main(int argc, char **argv)
 			if(!loadIOS(249)) loadIOS(36);
 		}
 	}
+
 	/* Initialize subsystems */
 	Sys_Init();
 
@@ -170,7 +174,7 @@ int main(int argc, char **argv)
 
 	/* Initialize Wiimote and GC Controller */
 	Wpad_Init();
-	PAD_Init ();
+	PAD_Init();
 	WiiDRC_Init();
 	WIILIGHT_Init();
 
@@ -181,10 +185,10 @@ int main(int argc, char **argv)
 	SetDefaultConfig ();
 
 	// Read the config file
-	ReadConfigFile (WM_CONFIG_FILE_PATH);
+	ReadConfigFile(WM_CONFIG_FILE_PATH);
 
 	// Check password
-	CheckPassword ();
+	CheckPassword();
 
 	/* Menu loop */
 	Menu_Loop();
