@@ -74,6 +74,8 @@ const u8 ES_TitleVersionCheck_old[] = { 0xD2, 0x01, 0x4E, 0x56 };
 const u8 ES_TitleVersionCheck_patch[] = { 0xE0, 0x01, 0x4E, 0x56 };
 const u8 ES_TitleDeleteCheck_old[] = { 0xD8, 0x00, 0x4A, 0x04 };
 const u8 ES_TitleDeleteCheck_patch[] = { 0xE0, 0x00, 0x4A, 0x04 };
+const u8 isfs_permissions_old[] = { 0x9B, 0x05, 0x40, 0x03, 0x99, 0x05, 0x42, 0x8B, };
+const u8 isfs_permissions_patch[] = { 0x9B, 0x05, 0x40, 0x03, 0x1C, 0x0B, 0x42, 0x8B, };
 
 //Following patches made my damysteryman for use with Wii U's vWii
 const u8 Kill_AntiSysTitleInstallv3_pt1_old[] = { 0x68, 0x1A, 0x2A, 0x01, 0xD0, 0x05 };	// Make sure that the pt1
@@ -97,7 +99,7 @@ u32 IOSPATCH_Apply() {
 	if (AHBPROT_DISABLED) {
 		disable_memory_protection();
 		//count += apply_patch("di_readlimit", di_readlimit_old, sizeof(di_readlimit_old), di_readlimit_patch, sizeof(di_readlimit_patch), 12);
-		//count += apply_patch("isfs_permissions", isfs_permissions_old, sizeof(isfs_permissions_old), isfs_permissions_patch, sizeof(isfs_permissions_patch), 0);
+		count += apply_patch("isfs_permissions", isfs_permissions_old, sizeof(isfs_permissions_old), isfs_permissions_patch, sizeof(isfs_permissions_patch), 0);
 		//count += apply_patch("es_setuid", setuid_old, sizeof(setuid_old), setuid_patch, sizeof(setuid_patch), 0);
 		//count += apply_patch("es_identify", es_identify_old, sizeof(es_identify_old), es_identify_patch, sizeof(es_identify_patch), 2);
 		count += apply_patch("hash_check", hash_old, sizeof(hash_old), hash_patch, sizeof(hash_patch), 1);

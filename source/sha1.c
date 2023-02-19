@@ -175,3 +175,17 @@ void SHA1(unsigned char *ptr, unsigned int size, unsigned char *outbuf) {
   SHA1Update(&ctx, ptr, size);
   SHA1Final(outbuf, &ctx);
 }
+
+int CompareHash(unsigned char* first, unsigned int firstSize, unsigned char* second, unsigned int secondSize)
+{
+    unsigned int HashA[5] = { 0, 0, 0, 0, 0, };
+    unsigned int HashB[5] = { 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, };
+
+    SHA1(first, firstSize, (unsigned char*)HashA);
+    SHA1(second, secondSize, (unsigned char*)HashB);
+
+    //printf("Hash 1: %.8X, %.8X, %.8X, %.8X, %.8X", HashA[0], HashA[1], HashA[2], HashA[3], HashA[4]);
+    //printf("Hash 2: %.8X, %.8X, %.8X, %.8X, %.8X", HashB[0], HashB[1], HashB[2], HashB[3], HashB[4]);
+
+    return memcmp(HashA, HashB, sizeof(HashA));
+}

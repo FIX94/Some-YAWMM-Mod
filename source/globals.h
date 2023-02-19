@@ -3,7 +3,7 @@
 
 // Constants
 #define CIOS_VERSION		249
-#define ENTRIES_PER_PAGE	14
+#define ENTRIES_PER_PAGE	12
 #define MAX_FILE_PATH_LEN	1024
 #define MAX_DIR_LEVELS		10
 #define WAD_DIRECTORY		"/"
@@ -16,20 +16,8 @@
 #define WM_CONFIG_FILE_PATH ":/wad/wm_config.txt"
 #define WM_BACKGROUND_PATH ":/wad/background.png"
 
-// These are indices into the fatDevice fdevList
-#define FAT_DEVICE_INDEX_WII_SD  0
-#define FAT_DEVICE_INDXE_USB     1
-#define FAT_DEVICE_INDEX_USB2    2
-#define FAT_DEVICE_INDEX_GC_SDA  3
-#define FAT_DEVICE_INDEX_GC_SDB  4
 #define FAT_DEVICE_INDEX_INVALID -1
-
-// These are the indices into the nandDevice ndevList
-#define NAND_DEVICE_INDEX_DISABLE   0
-#define NAND_DEVICE_INDEX_SD        1
-#define NAND_DEVICE_INDEX_USB	    2
 #define NAND_DEVICE_INDEX_INVALID   -1
-
 #define CIOS_VERSION_INVALID        -1
 
 // For the WiiLight
@@ -52,7 +40,7 @@ typedef struct
 
 extern CONFIG gConfig;
 extern nandDevice ndevList[];
-extern fatDevice fdevList[];
+//extern fatDevice fdevList[];
 
 
 #endif

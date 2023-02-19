@@ -3,6 +3,7 @@
 #include <malloc.h>
 #include <ogcsys.h>
 #include <ogc/pad.h>
+#include <unistd.h>
 
 #include "sys.h"
 #include "title.h"
@@ -10,6 +11,9 @@
 #include "video.h"
 #include "wad.h"
 #include "wpad.h"
+#include "nand.h"
+#include "fileops.h"
+#include "sha1.h"
 
 // Turn upper and lower into a full title ID
 #define TITLE_ID(x,y)		(((u64)(x) << 32) | (y))
@@ -18,32 +22,34 @@
 // Turn upper and lower into a full title ID
 #define TITLE_LOWER(x)		((u32)(x))
 
-typedef struct {
-	int version;
-	int region;
-
-} SMRegion;
-
-SMRegion regionlist[] = {
-	{33, 'X'},
-	{128, 'J'}, {97, 'E'}, {130, 'P'},
-	{162, 'P'},
-	{192, 'J'}, {193, 'E'}, {194, 'P'},
-	{224, 'J'}, {225, 'E'}, {226, 'P'},
-	{256, 'J'}, {257, 'E'}, {258, 'P'},
-	{288, 'J'}, {289, 'E'}, {290, 'P'},
-	{352, 'J'}, {353, 'E'}, {354, 'P'}, {326, 'K'},
-	{384, 'J'}, {385, 'E'}, {386, 'P'},
-	{390, 'K'},
-	{416, 'J'}, {417, 'E'}, {418, 'P'},
-	{448, 'J'}, {449, 'E'}, {450, 'P'}, {454, 'K'},
-	{480, 'J'}, {481, 'E'}, {482, 'P'}, {486, 'K'},
-	{512, 'E'}, {513, 'E'}, {514, 'P'}, {518, 'K'},
+const char RegionLookupList[16] =
+{
+	'J', 'E', 'P', 0, 0, 0, 'K', 0, 0, 0, 0, 0, 0, 0, 0, 0,
 };
 
-#define NB_SM		(sizeof(regionlist) / sizeof(SMRegion))
+const u16 versionList[] = 
+{
+//	J		E		P		K
+
+	64,		33,		66,					// 1.0
+	128,	97,		130,				// 2.0
+					162,				// 2.1
+	192,	193,	194,				// 2.2
+	224,	225,	226,				// 3.0
+	256,	257,	258,				// 3.1
+	288,	289,	290,				// 3.2
+	352,	353,	354,	326,		// 3.3
+	384,	385,	386, 				// 3.4
+							390, 		// 3.5
+	416,	417,	418,				// 4.0
+	448,	449,	450,	454, 		// 4.1
+	480,	481,	482,	486, 		// 4.2
+	512,	513, 	514,	518, 		// 4.3
+};
 
 u32 WaitButtons(void);
+static u32 gPriiloaderSize = 0;
+static bool gForcedInstall = false;
 
 u32 be32(const u8 *p)
 {
@@ -125,31 +131,278 @@ u64 get_title_ios(u64 title) {
 	return 0;
 }
 
-int get_sm_region_basic()
+s32 GetSysMenuRegion(u16* version, char* region)
 {
-	u32 tmd_size;
-		
-	u64 title = TITLE_ID(1, 2);
-	static u8 tmd_buf[MAX_SIGNED_TMD_SIZE] ATTRIBUTE_ALIGN(32);
-	
-	int ret = ES_GetStoredTMDSize(title, &tmd_size);
-		
-	// Some of this code adapted from bushing's title_lister.c
-	signed_blob *s_tmd = (signed_blob *)tmd_buf;
-	ret = ES_GetStoredTMD(title, s_tmd, tmd_size);
-	if (ret < 0){
-		//printf("Error! ES_GetStoredTMD: %d\n", ret);
-		return -1;
-	}
-	tmd *t = SIGNATURE_PAYLOAD(s_tmd);
-	ret = t->title_version;
-	int i = 0;
-	while( i <= NB_SM)
-	{
-		if(	regionlist[i].version == ret) return regionlist[i].region;
-		i++;
-	}
+	u16 v = 0;
+	s32 ret = Title_GetVersion(0x100000002LL, &v);
+
+	if (ret < 0)
+		return ret;
+
+	if (version)
+		*version = v;
+
+	if (region)
+		*region = RegionLookupList[(v & 0x0F)];
+
 	return 0;
+}
+
+const char* GetSysMenuRegionString(const char* region)
+{
+	switch (*region)
+	{
+		case 'J': return "Japan (NTSC-J)";
+		case 'E': return "USA (NTSC-U/C)";
+		case 'P': return "Europe (PAL)";
+		case 'K': return "Korea (NTSC-K)";
+	}
+
+	return "Unknown";
+}
+
+static char* GetTitleExec(u64 tId, bool tweaked)
+{
+	u32 size;
+	const u8 buffer[MAX_SIGNED_TMD_SIZE] ATTRIBUTE_ALIGN(32);
+
+	s32 ret = ES_GetStoredTMDSize(0x100000002, &size);
+	signed_blob* tmdRaw = (signed_blob*)buffer;
+
+	ret = ES_GetStoredTMD(0x100000002, tmdRaw, size);
+	if (ret < 0)
+	{
+		printf("Error! ES_GetStoredTMDSize: Failed! (Error: %d)\n", ret);
+		return NULL;
+	}
+
+	tmd* smTMD = SIGNATURE_PAYLOAD(tmdRaw);
+
+	char* path = (char*)memalign(0x40, ISFS_MAXPATH);
+	if (!path)
+		return NULL;
+
+	if(tweaked)
+		sprintf(path, "/title/%08x/%08x/content/1%.7x.app", TITLE_UPPER(tId), TITLE_LOWER(tId), smTMD->contents[smTMD->boot_index].cid);
+	else 
+		sprintf(path, "/title/%08x/%08x/content/%.8x.app", TITLE_UPPER(tId), TITLE_LOWER(tId), smTMD->contents[smTMD->boot_index].cid);
+
+	return path;
+}
+
+static inline bool IsPriiloaderInstalled()
+{
+	char* path = GetTitleExec(0x100000002LL, true);
+	if (!path)
+		return false;
+	
+	
+	u32 size = 0;
+	NANDGetFileSize(path, &size);
+	free(path);
+
+	if (size > 0)
+		return true;
+	else
+		return false;
+}
+
+static bool BackUpPriiloader()
+{
+	char* path = GetTitleExec(0x100000002LL, false);
+	if (!path)
+		return false;
+
+	u32 size = 0;
+	s32 ret = NANDBackUpFile(path, "/tmp/priiload.app", &size);
+	free(path);
+	
+	if (ret < 0)
+	{
+		printf("Error! NANDBackUpFile: Failed! (Error: %d)\n", ret);
+		return false;
+	}
+						
+	ret = NANDGetFileSize("/tmp/priiload.app", &gPriiloaderSize);
+
+	return (gPriiloaderSize == size);
+}
+
+static bool MoveMenu(bool restore)
+{
+	char* srcPath = GetTitleExec(0x100000002LL, restore);
+	if (!srcPath)
+		return false;
+
+	char* dstPath = GetTitleExec(0x100000002LL, !restore);
+	if (!dstPath)
+	{
+		free(srcPath);
+		return false;
+	}
+
+	u32 size = 0;
+	s32 ret = NANDBackUpFile(srcPath, dstPath, &size);
+	if (ret < 0)
+	{
+		free(srcPath);
+		free(dstPath);
+		printf("Error! NANDBackUpFile: Failed! (Error: %d)\n", ret);
+		return false;
+	}
+
+	u32 checkSize = 0;
+	ret = NANDGetFileSize(dstPath, &checkSize);
+
+	free(srcPath);
+	free(dstPath);
+
+	return (checkSize == size);
+}
+
+static bool RestorePriiloader()
+{
+	char* dstPath = GetTitleExec(0x100000002LL, false);
+	if (!dstPath)
+		return false;
+
+	u32 size = 0;
+	s32 ret = NANDBackUpFile("/tmp/priiload.app", dstPath, &size);
+	if (ret < 0)
+	{
+		free(dstPath);
+		printf("Error! NANDBackUpFile: Failed! (Error: %d)\n", ret);
+		return false;
+	}
+
+	u32 checkSize = 0;
+	ret = NANDGetFileSize(dstPath, &checkSize);
+
+	free(dstPath);
+
+	return (checkSize == size && checkSize == gPriiloaderSize);
+}
+
+static void PrintCleanupResult(s32 result)
+{
+	
+	if (result < 0)
+	{
+		switch (result)
+		{
+			case -102:
+			{
+				printf(" Acces denied.\n");
+			} break;
+			case -106:
+			{
+				printf(" Not found.\n");
+			} break;
+			default:
+			{
+				printf(" Error: %d\n", result);
+			} break;
+		}
+	}
+	else
+	{
+		printf(" OK!\n");
+	}
+
+	sleep(1);
+}
+
+static void CleanupPriiloaderLeftOvers(bool retain)
+{
+	if (!retain)
+	{
+		printf("\n\t\tCleanup Priiloader leftover files...\n");
+		printf("\r\t\t>> Password file...");
+		PrintCleanupResult(NANDDeleteFile("/title/00000001/00000002/data/password.txt"));
+		printf("\r\t\t>> Settings file...");
+		PrintCleanupResult(NANDDeleteFile("/title/00000001/00000002/data/loader.ini"));
+		printf("\r\t\t>> Ticket...");
+		PrintCleanupResult(NANDDeleteFile("/title/00000001/00000002/data/ticket"));
+		printf("\r\t\t>> File: main.nfo...");
+		PrintCleanupResult(NANDDeleteFile("/title/00000001/00000002/data/main.nfo"));
+		printf("\r\t\t>> File: main.bin...");
+		PrintCleanupResult(NANDDeleteFile("/title/00000001/00000002/data/main.bin"));
+	}
+	
+	printf("\n\t\tRemoving Priiloader hacks...\n");
+	
+	printf("\r\t\t>> File: hacks_s.ini...");
+	PrintCleanupResult(NANDDeleteFile("/title/00000001/00000002/data/hacks_s.ini"));
+	printf("\r\t\t>> File: hacks.ini...");
+	PrintCleanupResult(NANDDeleteFile("/title/00000001/00000002/data/hacks.ini"));
+	printf("\r\t\t>> File: hacksh_s.ini...");
+	PrintCleanupResult(NANDDeleteFile("/title/00000001/00000002/data/hacksh_s.ini"));
+	printf("\r\t\t>> File: hackshas.ini...");
+	PrintCleanupResult(NANDDeleteFile("/title/00000001/00000002/data/hackshas.ini"));
+
+	if (retain)
+	{
+		printf("\n\t\tPriiloader hacks will be reset!\n");
+		printf("\t\tRemember to set them again.\n");
+	}	
+}
+
+static bool CompareHashes(bool priiloader)
+{
+	char* dstPath = NULL;
+	char* srcPath = GetTitleExec(0x100000002LL, false);
+
+	if (!srcPath)
+		return false;
+	
+	if (priiloader)
+	{
+		dstPath = (char*)memalign(0x40, ISFS_MAXPATH);
+		if (!dstPath)
+		{
+			free(srcPath);
+			return false;
+		}
+		
+		strcpy(dstPath, "/tmp/priiload.app");
+	}
+	else
+	{
+		dstPath = GetTitleExec(0x100000002LL, true);
+		if (!dstPath)
+		{
+			free(srcPath);
+			return false;
+		}
+	}
+
+	u32 sizeA = 0;
+	u32 sizeB = 0;
+	u8* dataA = NANDLoadFile(srcPath, &sizeA);
+	if (!dataA)
+	{
+		free(srcPath);
+		free(dstPath);
+		return false;
+	}
+
+	u8* dataB = NANDLoadFile(dstPath, &sizeB);
+	if (!dataA)
+	{
+		free(srcPath);
+		free(dstPath);
+		free(dataA);
+		return false;
+	}
+	
+	bool ret = !CompareHash(dataA, sizeA, dataB, sizeB);
+
+	free(srcPath);
+	free(dstPath);
+	free(dataA);
+	free(dataB);
+
+	return ret;
 }
 
 /* 'WAD Header' structure */
@@ -174,45 +427,6 @@ typedef struct {
 /* Variables */
 static u8 wadBuffer[BLOCK_SIZE] ATTRIBUTE_ALIGN(32);
 
-
-s32 __Wad_ReadFile(FILE *fp, void *outbuf, u32 offset, u32 len)
-{
-	s32 ret;
-
-	/* Seek to offset */
-	fseek(fp, offset, SEEK_SET);
-
-	/* Read data */
-	ret = fread(outbuf, len, 1, fp);
-	if (ret < 0)
-		return ret;
-
-	return 0;
-}
-
-s32 __Wad_ReadAlloc(FILE *fp, void **outbuf, u32 offset, u32 len)
-{
-	void *buffer = NULL;
-	s32   ret;
-
-	/* Allocate memory */
-	buffer = memalign(32, len);
-	if (!buffer)
-		return -1;
-
-	/* Read file */
-	ret = __Wad_ReadFile(fp, buffer, offset, len);
-	if (ret < 0) {
-		free(buffer);
-		return ret;
-	}
-
-	/* Set pointer */
-	*outbuf = buffer;
-
-	return 0;
-}
-
 s32 __Wad_GetTitleID(FILE *fp, wadHeader *header, u64 *tid)
 {
 	signed_blob *p_tik    = NULL;
@@ -227,8 +441,8 @@ s32 __Wad_GetTitleID(FILE *fp, wadHeader *header, u64 *tid)
 	offset += round_up(header->crl_len,    64);
 
 	/* Read ticket */
-	ret = __Wad_ReadAlloc(fp, (void *)&p_tik, offset, header->tik_len);
-	if (ret < 0)
+	ret = FSOPReadOpenFileA(fp, (void*)&p_tik, offset, header->tik_len);
+	if (ret != 1)
 		goto out;
 
 	/* Ticket data */
@@ -273,15 +487,17 @@ s32 Wad_Install(FILE *fp)
 	u32 cnt, offset = 0;
 	int ret;
 	u64 tid;
+	bool retainPriiloader = false;
+	bool cleanupPriiloader = false;
 
 	printf("\t\t>> Reading WAD data...");
 	fflush(stdout);
 	
-	ret = __Wad_ReadAlloc(fp, (void *)&header, offset, sizeof(wadHeader));
-	if (ret >= 0)
-		offset += round_up(header->header_len, 64);
+	ret = FSOPReadOpenFileA(fp, (void*)&header, offset, sizeof(wadHeader));
+	if (ret != 1)
+		goto err;
 	else
-	goto err;
+		offset += round_up(header->header_len, 64);
 	
 	//Don't try to install boot2
 	__Wad_GetTitleID(fp, header, &tid);
@@ -294,31 +510,31 @@ s32 Wad_Install(FILE *fp)
 	}
 	
 	/* WAD certificates */
-	ret = __Wad_ReadAlloc(fp, (void *)&p_certs, offset, header->certs_len);
-	if (ret >= 0)
-		offset += round_up(header->certs_len, 64);
+	ret = FSOPReadOpenFileA(fp, (void*)&p_certs, offset, header->certs_len);
+	if (ret != 1)
+		goto err;
 	else
-	goto err;
-	
+		offset += round_up(header->certs_len, 64);
+		
 	/* WAD crl */
 	if (header->crl_len) {
-		ret = __Wad_ReadAlloc(fp, (void *)&p_crl, offset, header->crl_len);
-		if (ret < 0)
+		ret = FSOPReadOpenFileA(fp, (void*)&p_crl, offset, header->crl_len);
+		if (ret != 1)
 			goto err;
 		else
 			offset += round_up(header->crl_len, 64);
 	}
 
 	/* WAD ticket */
-	ret = __Wad_ReadAlloc(fp, (void *)&p_tik, offset, header->tik_len);
-	if (ret < 0)
+	ret = FSOPReadOpenFileA(fp, (void*)&p_tik, offset, header->tik_len);
+	if (ret != 1)
 		goto err;
 	else
 		offset += round_up(header->tik_len, 64);
 
 	/* WAD TMD */
-	ret = __Wad_ReadAlloc(fp, (void *)&p_tmd, offset, header->tmd_len);
-	if (ret < 0)
+	ret = FSOPReadOpenFileA(fp, (void*)&p_tmd, offset, header->tmd_len);
+	if (ret != 1)
 		goto err;
 	else
 		offset += round_up(header->tmd_len, 64);
@@ -338,7 +554,7 @@ s32 Wad_Install(FILE *fp)
 	
 	if(get_title_ios(TITLE_ID(1, 2)) == tid)
 	{
-		if ( ( tmd_data->num_contents == 3) && (tmd_data->contents[0].type == 1 && tmd_data->contents[1].type == 0x8001 && tmd_data->contents[2].type == 0x8001) )
+		if (( tmd_data->num_contents == 3) && (tmd_data->contents[0].type == 1 && tmd_data->contents[1].type == 0x8001 && tmd_data->contents[2].type == 0x8001))
 		{
 			printf("\n    I won't install a stub System Menu IOS\n");
 			ret = -999;
@@ -348,7 +564,7 @@ s32 Wad_Install(FILE *fp)
 	
 	if(tid  == get_title_ios(TITLE_ID(0x10008, 0x48414B00 | 'E')) || tid  == get_title_ios(TITLE_ID(0x10008, 0x48414B00 | 'P')) || tid  == get_title_ios(TITLE_ID(0x10008, 0x48414B00 | 'J')) || tid  == get_title_ios(TITLE_ID(0x10008, 0x48414B00 | 'K')))
 	{
-		if ( ( tmd_data->num_contents == 3) && (tmd_data->contents[0].type == 1 && tmd_data->contents[1].type == 0x8001 && tmd_data->contents[2].type == 0x8001) )
+		if ((tmd_data->num_contents == 3) && (tmd_data->contents[0].type == 1 && tmd_data->contents[1].type == 0x8001 && tmd_data->contents[2].type == 0x8001))
 		{
 			printf("\n    I won't install a stub EULA IOS\n");
 			ret = -999;
@@ -358,7 +574,7 @@ s32 Wad_Install(FILE *fp)
 	
 	if(tid  == get_title_ios(TITLE_ID(0x10008, 0x48414C00 | 'E')) || tid  == get_title_ios(TITLE_ID(0x10008, 0x48414C00 | 'P')) || tid  == get_title_ios(TITLE_ID(0x10008, 0x48414C00 | 'J')) || tid  == get_title_ios(TITLE_ID(0x10008, 0x48414C00 | 'K')))
 	{
-		if ( ( tmd_data->num_contents == 3) && (tmd_data->contents[0].type == 1 && tmd_data->contents[1].type == 0x8001 && tmd_data->contents[2].type == 0x8001) )
+		if ((tmd_data->num_contents == 3) && (tmd_data->contents[0].type == 1 && tmd_data->contents[1].type == 0x8001 && tmd_data->contents[2].type == 0x8001))
 		{
 			printf("\n    I won't install a stub rgsel IOS\n");
 			ret = -999;
@@ -385,30 +601,36 @@ s32 Wad_Install(FILE *fp)
 	
 	if (tid == TITLE_ID(1, 2))
 	{
-		if (skipRegionSafetyCheck) goto skipChecks;
+		char region = 0;
+		u16 version = 0;
 
-		if(get_sm_region_basic() == 0)
+		if (skipRegionSafetyCheck || gForcedInstall)
+			goto skipChecks;
+
+		GetSysMenuRegion(&version, &region);
+		if(region == 0)
 		{
-			printf("\n    Can't get the SM region\n    Please check the site for updates\n");
+			printf("\n    Unkown SM region\n    Please check the site for updates\n");
 			ret = -999;
 			goto err;
 		}
+
 		int i, ret = -1;
-		for(i = 0; i <= NB_SM; i++)
+		for(i = 0; i < sizeof(versionList); i++)
 		{
-			if(	regionlist[i].version == tmd_data->title_version)
+			if(versionList[i] == tmd_data->title_version)
 			{
 				ret = 1;
 				break;
 			}
 		}
-		if(ret -1)
+		if(ret != 1)
 		{
-			printf("\n    Can't get the SM region\n    Please check the site for updates\n");
+			printf("\n    Unknown SM region\n    Please check the site for updates\n");
 			ret = -999;
 			goto err;
 		}
-		if(get_sm_region_basic() != regionlist[i].region)
+		if(region != RegionLookupList[(tmd_data->title_version & 0x0F)])
 		{
 			printf("\n    I won't install the wrong regions SM\n");
 			ret = -999;
@@ -424,8 +646,57 @@ skipChecks:
 				goto err;
 			}
 		}
+
+		if (!gForcedInstall && IsPriiloaderInstalled())
+		{
+			cleanupPriiloader = true;
+			printf("\n    Priiloader is installed next to the system menu.\n\n");
+			printf("    Press A to retain Priiloader or B to remove.");
+
+			u32 buttons = WaitButtons();
+
+			if ((buttons & WPAD_BUTTON_A))
+			{
+				retainPriiloader = (BackUpPriiloader() && CompareHashes(true));
+				if (retainPriiloader)
+				{
+					Con_ClearLine();
+					printf("\r[+] Priiloader will be retained.\n");
+					fflush(stdout);
+				}
+				else
+				{
+					Con_ClearLine();
+					printf("\r    Couldn't backup Priiloader.\n");
+					fflush(stdout);
+
+					printf("\n    Press A to continue or B to skip");
+
+					u32 buttons = WaitButtons();
+
+					if (!(buttons & WPAD_BUTTON_A))
+					{
+						ret = -990;
+						goto err;
+					}
+				}
+			}
+
+			if (!retainPriiloader)
+			{
+				Con_ClearLine();
+				printf("\r[+] Priiloader will be removed.\n");
+				fflush(stdout);
+			}
+		}
 	}
 	
+	if (gForcedInstall)
+	{
+		gForcedInstall = false;
+		cleanupPriiloader = true;
+	}
+
 	/* Fix ticket */
 	__Wad_FixTicket(p_tik);
 
@@ -479,8 +750,8 @@ skipChecks:
 				size = BLOCK_SIZE;
 
 			/* Read data */
-			ret = __Wad_ReadFile(fp, &wadBuffer, offset, size);
-			if (ret < 0)
+			ret = FSOPReadOpenFile(fp, &wadBuffer, offset, size);
+			if (ret != 1)
 				goto err;
 
 			/* Install data */
@@ -506,13 +777,106 @@ skipChecks:
 
 	/* Finish title install */
 	ret = ES_AddTitleFinish();
-	if (ret >= 0) {
+	if (ret >= 0) 
+	{
 		printf(" OK!\n");
+
+		if (retainPriiloader)
+		{
+			printf("\r\t\t>> Moving System Menu...");
+			if (MoveMenu(false))
+			{
+				printf(" OK!\n");
+
+				printf("\r\t\t>> Check System Menu executable hashes...");
+
+				s32 restoreMenu = 0;
+				
+				if (CompareHashes(false))
+				{
+					printf(" OK!\n");
+				}
+				else
+				{
+					printf(" Failed!\n");
+					restoreMenu = 1;
+				}
+
+				printf("\r\t\t>> Restore Priiloader...");
+				if (!restoreMenu && RestorePriiloader())
+				{
+					printf(" OK!\n");
+					printf("\r\t\t>> Check Priiloader executable hashes...");
+					if (CompareHashes(true))
+					{
+						printf(" OK!\n");
+					}
+					else
+					{
+						printf(" Failed!\n");
+						restoreMenu = 2;
+					}
+				}
+				else
+				{
+					printf(" Failed!\n");
+					restoreMenu = 2;
+				}
+
+				if (restoreMenu)
+				{
+					printf("\r\t\t>> Restore System Menu...");
+					bool restored = true;
+					switch (restoreMenu)
+					{
+						case 2:
+						{
+							restored = (MoveMenu(true) && CompareHashes(false));
+						}
+						case 1:
+						{
+							if (restored)
+							{
+								char* path = GetTitleExec(0x100000002LL, true);
+								NANDDeleteFile(path);
+								free(path);
+							}
+						}
+					}
+					
+					if (restored)
+					{
+						printf(" OK!\n");
+					}
+					else
+					{
+						printf(" Failed!\n");
+						printf("\n\t\t>> Reinstalling System Menu...\n\n");
+						sleep(3);
+						printf("\t\t>> Priiloader will be removed!\n\n");
+
+						gForcedInstall = true;
+						cleanupPriiloader = false;
+					}
+				}
+			}
+			else
+			{
+				printf(" Failed!\n");
+				printf("\n\t\t>> Priiloader will be removed!\n\n");
+			}
+		}
+
+		if (cleanupPriiloader)
+		{
+			CleanupPriiloaderLeftOvers(retainPriiloader);
+		}
+
 		goto out;
 	}
 
 err:
-	printf(" ERROR! (ret = %d)\n", ret);
+	printf("\n    ERROR! (ret = %d)\n", ret);
 
 	/* Cancel install */
 	ES_AddTitleCancel();
@@ -525,6 +889,9 @@ out:
 	free(p_tik);
 	free(p_tmd);
 
+	if (gForcedInstall)
+		return Wad_Install(fp);
+	
 	return ret;
 }
 
@@ -541,8 +908,9 @@ s32 Wad_Uninstall(FILE *fp)
 	fflush(stdout);
 
 	/* WAD header */
-	ret = __Wad_ReadAlloc(fp, (void *)&header, 0, sizeof(wadHeader));
-	if (ret < 0) {
+	ret = FSOPReadOpenFileA(fp, (void*)&header, 0, sizeof(wadHeader));
+	if (ret != 1)
+	{
 		printf(" ERROR! (ret = %d)\n", ret);
 		goto out;
 	}
@@ -592,32 +960,36 @@ s32 Wad_Uninstall(FILE *fp)
 			goto out;
 		}
 	}
+	
+	char region = 0;
+	GetSysMenuRegion(NULL, &region);
+	
 	if((tid  == TITLE_ID(0x10008, 0x48414B00 | 'E') || tid  == TITLE_ID(0x10008, 0x48414B00 | 'P') || tid  == TITLE_ID(0x10008, 0x48414B00 | 'J') || tid  == TITLE_ID(0x10008, 0x48414B00 | 'K') 
-		|| (tid  == TITLE_ID(0x10008, 0x48414C00 | 'E') || tid  == TITLE_ID(0x10008, 0x48414C00 | 'P') || tid  == TITLE_ID(0x10008, 0x48414C00 | 'J') || tid  == TITLE_ID(0x10008, 0x48414C00 | 'K'))) && get_sm_region_basic() == 0)
+		|| (tid  == TITLE_ID(0x10008, 0x48414C00 | 'E') || tid  == TITLE_ID(0x10008, 0x48414C00 | 'P') || tid  == TITLE_ID(0x10008, 0x48414C00 | 'J') || tid  == TITLE_ID(0x10008, 0x48414C00 | 'K'))) && region == 0)
 	{
-		printf("\n    Can't get the SM region\n    Please check the site for updates\n");
+		printf("\n    Unkown SM region\n    Please check the site for updates\n");
 		ret = -999;
 		goto out;
 	}
-	if(tid  == TITLE_ID(0x10008, 0x48414B00 | get_sm_region_basic()))
+	if(tid  == TITLE_ID(0x10008, 0x48414B00 | region))
 	{
 		printf("\n    I won't uninstall the EULA\n");
 		ret = -999;
 		goto out;
 	}	
-	if(tid  == TITLE_ID(0x10008, 0x48414C00 | get_sm_region_basic()))
+	if(tid  == TITLE_ID(0x10008, 0x48414C00 | region))
 	{
 		printf("\n    I won't uninstall rgsel\n");
 		ret = -999;
 		goto out;
 	}	
-	if(tid  == get_title_ios(TITLE_ID(0x10008, 0x48414B00 | get_sm_region_basic())))
+	if(tid  == get_title_ios(TITLE_ID(0x10008, 0x48414B00 | region)))
 	{
 		printf("\n    I won't uninstall the EULAs IOS\n");
 		ret = -999;
 		goto out;
 	}	
-	if(tid  == get_title_ios(TITLE_ID(0x10008, 0x48414C00 | get_sm_region_basic())))
+	if(tid  == get_title_ios(TITLE_ID(0x10008, 0x48414C00 | region)))
 	{
 		printf("\n    I won't uninstall the rgsel IOS\n");
 		ret = -999;

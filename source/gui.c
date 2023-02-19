@@ -7,6 +7,7 @@
 #include "menu.h"
 #include "nand.h"
 #include "globals.h"
+#include "fileops.h"
 
 /* Constants */
 #define CONSOLE_XCOORD		70
@@ -14,36 +15,25 @@
 #define CONSOLE_WIDTH		502
 #define CONSOLE_HEIGHT		300
 
-bool file_exists(const char * filename)
-{
-	FILE * file;
-    if ((file = fopen(filename, "r")))
-    {
-        fclose(file);
-        return true;
-    }
-    return false;
-}
-
-
 s32 __Gui_DrawPng(void *img, u32 x, u32 y)
 {
 	IMGCTX   ctx = NULL;
 	PNGUPROP imgProp;
+	char path[1024];
+	s32 ret = -1;
+	s32 i;
 
-	s32 ret;
-
-	fatDevice *fdev = &fdevList[0];
-	ret = Fat_Mount(fdev);
-	if (file_exists("sd:/wad/background.png")) ctx = PNGU_SelectImageFromDevice ("sd:/wad/background.png");
-	
-	if (ret < 0) 
+	for (i = 0; i < FatGetDeviceCount(); i++)
 	{
-		fdev = &fdevList[2];
-		Fat_Mount(fdev);
-		if (file_exists("usb2:/wad/background.png")) ctx = PNGU_SelectImageFromDevice ("usb2:/wad/background.png");
+		snprintf(path, sizeof(path), "%s:/wad/background.png", FatGetDevicePrefix(i));
+		if (FSOPFileExists(path))
+		{
+			ctx = PNGU_SelectImageFromDevice(path);
+			break;
+		}
+			
 	}
-	
+
 	if(!ctx)
 	{
 		/* Select PNG data */
@@ -53,6 +43,7 @@ s32 __Gui_DrawPng(void *img, u32 x, u32 y)
 			goto out;
 		}
 	}
+	
 	/* Get image properties */
 	ret = PNGU_GetImageProperties(ctx, &imgProp);
 	if (ret != PNGU_OK) {

@@ -166,6 +166,8 @@ int main(int argc, char **argv)
 	/* Set video mode */
 	Video_SetMode();
 
+	FatMount();
+
 	/* Initialize console */
 	Gui_InitConsole();
 
@@ -193,6 +195,8 @@ int main(int argc, char **argv)
 	/* Menu loop */
 	Menu_Loop();
 
+	FatUnmount();
+
 	/* Restart Wii */
 	Restart_Wait();
 
@@ -200,30 +204,27 @@ int main(int argc, char **argv)
 }
 
 
-int ReadConfigFile (char *configFilePath)
+int ReadConfigFile(char* configFilePath)
 {
-    int retval = 0;
-	FILE *fptr;
-	char *tmpStr = malloc (MAX_FILE_PATH_LEN);
-	char tmpOutStr [40], path[128];
-	int i;
+	int retval = 0;
+	FILE* fptr;
+	char* tmpStr = malloc(MAX_FILE_PATH_LEN);
+	char tmpOutStr[40], path[128];
+	s32 i;
+	s32 ret = -1;
+	bool found = false;
 
 	if (tmpStr == NULL)
 		return (-1);
 
-	fatDevice *fdev = &fdevList[0];
-	int ret = Fat_Mount(fdev);
-	snprintf(path, sizeof(path), "%s%s", fdev->mount, configFilePath);
-	
-	if (ret < 0) 
+	// Just check if at least one device is available
+	for (i = 0; i < FatGetDeviceCount(); i++)
 	{
-		fdev = &fdevList[2];
-		ret = Fat_Mount(fdev);
-		snprintf(path, sizeof(path), "%s%s", fdev->mount, configFilePath);
-		//snprintf(path, sizeof(path), "%s%s", fdev->mount, configFilePath);
+		snprintf(path, sizeof(path), "%s%s", FatGetDevicePrefix(i), configFilePath);
+		found = true;
 	}
 	
-	if (ret < 0) 
+	if (!found) 
 	{
 		printf(" ERROR! (ret = %d)\n", ret);
 		// goto err;
@@ -281,7 +282,8 @@ int ReadConfigFile (char *configFilePath)
 						GetStringParam (tmpOutStr, tmpStr, MAX_FAT_DEVICE_LENGTH);
 						for (i = 0; i < 5; i++)
 						{
-							if (strncmp (fdevList[i].mount, tmpOutStr, 4) == 0)
+							//if (strncmp (fdevList[i].mount, tmpOutStr, 4) == 0)
+							if (strncmp(FatGetDevicePrefix(i), tmpOutStr, 4) == 0)
 							{
 								gConfig.fatDeviceIndex = i;
 							}
@@ -313,11 +315,11 @@ int ReadConfigFile (char *configFilePath)
 			//printf ("Config file is not found\n");  // This is for testing only
 			//WaitButtons();
 		}
-		Fat_Unmount(fdev);
+		//Fat_Unmount(fdev);
 	}
 
 	// Free memory
-	free (tmpStr);
+	free(tmpStr);
 
 	return (retval);
 } // ReadConfig

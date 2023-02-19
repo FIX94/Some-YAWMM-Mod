@@ -1,58 +1,104 @@
 #include <stdio.h>
 #include <string.h>
 #include <ogcsys.h>
+#include <fat.h>
+#include <sys/dir.h>
+#include <sdcard/gcsd.h>
+#include <sdcard/wiisd_io.h>
+
 //#include <smb.h>
 
 #include "fat.h"
+#include "usbstorage.h"
 
-
-s32 Fat_Mount(fatDevice *dev)
+typedef struct
 {
-	s32 ret;
+	/* Device prefix */
+	char* prefix;
 
-	/* Initialize interface */
-	ret = dev->interface->startup();
-	if (!ret)
-		return -1;
+	/* Device name */
+	char* name;
 
-	/* Mount device */
-	ret = fatMountSimple(dev->mount, dev->interface);
-	if (!ret)
-		return -1;
+	/* Device available */
+	bool isMounted;
 
-	return 0;
+	/* Device interface */
+	const DISC_INTERFACE* interface;
+} FatDevice;
+
+static FatDevice DeviceList[] =
+{
+	{ "sd",		"Wii SD Slot",					false,	&__io_wiisd },
+	{ "usb",	"USB Mass Storage Device",		false,	&__io_usbstorage },
+	{ "usb2",	"USB 2.0 Mass Storage Device",	false,	&__io_wiiums },
+	{ "gcsda",	"SD Gecko (Slot A)",			false,	&__io_gcsda },
+	{ "gcsdb",	"SD Gecko (Slot B)",			false,	&__io_gcsdb },
+};
+
+static u32 gNumDevices = 0;
+FatDevice* gDevices[(sizeof(DeviceList) / sizeof(FatDevice))];
+
+void FatMount()
+{
+	FatUnmount();
+	
+	s32 i;
+	for (i = 0; i < (sizeof(DeviceList) / sizeof(FatDevice)); i++)
+	{
+		gDevices[gNumDevices] = &DeviceList[i];
+		
+		s32 ret = gDevices[gNumDevices]->interface->startup();
+
+		if (!ret)
+			continue;
+
+		ret = fatMountSimple(gDevices[gNumDevices]->prefix, gDevices[gNumDevices]->interface);
+
+		if (!ret)
+			continue;
+
+		gDevices[gNumDevices]->isMounted = true;
+		gNumDevices++;
+	}
 }
 
-void Fat_Unmount(fatDevice *dev)
+void FatUnmount()
 {
-	/* Unmount device */
-	fatUnmount(dev->mount);
-
-	/* Shutdown interface */
-	dev->interface->shutdown();
-}
-
-char *Fat_ToFilename(const char *filename)
-{
-	static char buffer[128];
-
-	u32 cnt, idx, len;
-
-	/* Clear buffer */
-	memset(buffer, 0, sizeof(buffer));
-
-	/* Get filename length */
-	len = strlen(filename);
-
-	for (cnt = idx = 0; idx < len; idx++) {
-		char c = filename[idx];
-
-		/* Valid characters */
-		if ( (c >= '#' && c <= ')') || (c >= '-' && c <= '.') ||
-		     (c >= '0' && c <= '9') || (c >= 'A' && c <= 'z') ||
-		     (c >= 'a' && c <= 'z') || (c == '!') )
-			buffer[cnt++] = c;
+	s32 i;
+	for (i = 0; i < FatGetDeviceCount(); i++)
+	{
+		fatUnmount(gDevices[i]->prefix);
+		gDevices[i]->interface->shutdown();
+		gDevices[i]->isMounted = false;
 	}
 
-	return buffer;
+	gNumDevices = 0;
+}
+
+char* FatGetDeviceName(u8 index)
+{
+	if (index >= FatGetDeviceCount())
+		return NULL;
+
+	if (gDevices[index]->isMounted)
+		return gDevices[index]->name;
+
+	return NULL;
+}
+
+
+char* FatGetDevicePrefix(u8 index)
+{
+	if (index >= FatGetDeviceCount())
+		return NULL;
+
+	if (gDevices[index]->isMounted)
+		return gDevices[index]->prefix;
+
+	return NULL;
+}
+
+s32 FatGetDeviceCount()
+{
+	return gNumDevices;
 }
