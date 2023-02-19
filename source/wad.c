@@ -479,6 +479,7 @@ bool skipRegionSafetyCheck = false;
 
 s32 Wad_Install(FILE *fp)
 {
+	SetPRButtons(false);
 	wadHeader   *header  = NULL;
 	signed_blob *p_certs = NULL, *p_crl = NULL, *p_tik = NULL, *p_tmd = NULL;
 
@@ -892,11 +893,13 @@ out:
 	if (gForcedInstall)
 		return Wad_Install(fp);
 	
+	SetPRButtons(true);
 	return ret;
 }
 
 s32 Wad_Uninstall(FILE *fp)
 {
+	SetPRButtons(false);
 	wadHeader *header   = NULL;
 	tikview   *viewData = NULL;
 
@@ -1047,5 +1050,7 @@ s32 Wad_Uninstall(FILE *fp)
 out:
 	/* Free memory */
 	free(header);
+
+	SetPRButtons(true);
 	return ret;
 }

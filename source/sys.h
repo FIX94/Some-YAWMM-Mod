@@ -10,5 +10,6 @@ void Sys_Reboot(void);
 void Sys_Shutdown(void);
 void Sys_LoadMenu(void);
 s32  Sys_GetCerts(signed_blob **, u32 *);
+void SetPRButtons(bool enabled);
 
 #endif

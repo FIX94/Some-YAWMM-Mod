@@ -13,16 +13,20 @@
 /* Variables */
 static const char certs_fs[] ATTRIBUTE_ALIGN(32) = "/sys/cert.sys";
 u32 boot2version;
+static bool gDisablePRButtons = false;
+
 void __Sys_ResetCallback(__attribute__((unused)) u32 irq, __attribute__((unused)) void *ctx)
 {
 	/* Reboot console */
-	Sys_Reboot();
+	if (!gDisablePRButtons)
+		Sys_Reboot();
 }
 
 void __Sys_PowerCallback(void)
 {
 	/* Poweroff console */
-	Sys_Shutdown();
+	if (!gDisablePRButtons)
+		Sys_Shutdown();
 }
 
 bool isIOSstub(u8 ios_number) 
@@ -185,4 +189,9 @@ s32 Sys_GetCerts(signed_blob **certs, u32 *len)
 	}
 
 	return ret;
+}
+
+void SetPRButtons(bool enabled)
+{
+	gDisablePRButtons = !enabled;
 }
