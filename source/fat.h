@@ -1,8 +1,10 @@
 #ifndef _FAT_H_
 #define _FAT_H_
 
+
 /* 'FAT File' structure */
-typedef struct {
+typedef struct 
+{
 	/* Filename */
 	char filename[128];
 	/* 1 = Batch Install, 2 = Batch Uninstall - Leathl */
@@ -18,9 +20,7 @@ typedef struct {
 	size_t fsize;
 } fatFile;
 
-
 /* Prototypes */
-
 void FatMount();
 void FatUnmount();
 char* FatGetDeviceName(u8 index);

@@ -3,6 +3,8 @@
 
 /* Prototypes */
 void Menu_Loop(void);
+void SetPriiloaderOption(bool enabled);
+bool MenuTestDevice();
 
 #endif
 

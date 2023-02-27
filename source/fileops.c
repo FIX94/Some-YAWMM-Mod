@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <malloc.h>
+#include <string.h>
 
 #include "fileops.h"
 
@@ -56,6 +57,22 @@ void FSOPMakeFolder(const char* path)
 {
 	if (FSOPFolderExists(path))
 		return;
+
+	char* pos = strchr(path, '/');
+	s32 current = pos - path;
+	current++;
+	pos = strchr(path + current, '/');
+
+	while (pos)
+	{
+		*pos = 0;
+		mkdir(path, S_IREAD | S_IWRITE);
+		*pos = '/';
+		
+		current = pos - path;
+		current++;
+		pos = strchr(path + current, '/');
+	}
 
 	mkdir(path, S_IREAD | S_IWRITE);
 }

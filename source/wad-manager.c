@@ -18,6 +18,7 @@
 #include "nand.h"
 #include "globals.h"
 #include "iospatch.h"
+#include "fileops.h"
 
 // Globals
 CONFIG gConfig;
@@ -217,14 +218,17 @@ int ReadConfigFile(char* configFilePath)
 	if (tmpStr == NULL)
 		return (-1);
 
-	// Just check if at least one device is available
 	for (i = 0; i < FatGetDeviceCount(); i++)
-	{
+	{	
 		snprintf(path, sizeof(path), "%s%s", FatGetDevicePrefix(i), configFilePath);
-		found = true;
+		if (FSOPFileExists(path))
+		{
+			found = true;
+			break;
+		}
 	}
 	
-	if (!found) 
+	if (!found)
 	{
 		printf(" ERROR! (ret = %d)\n", ret);
 		// goto err;
@@ -282,7 +286,6 @@ int ReadConfigFile(char* configFilePath)
 						GetStringParam (tmpOutStr, tmpStr, MAX_FAT_DEVICE_LENGTH);
 						for (i = 0; i < 5; i++)
 						{
-							//if (strncmp (fdevList[i].mount, tmpOutStr, 4) == 0)
 							if (strncmp(FatGetDevicePrefix(i), tmpOutStr, 4) == 0)
 							{
 								gConfig.fatDeviceIndex = i;

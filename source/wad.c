@@ -14,6 +14,8 @@
 #include "nand.h"
 #include "fileops.h"
 #include "sha1.h"
+#include "menu.h"
+#include "iospatch.h"
 
 // Turn upper and lower into a full title ID
 #define TITLE_ID(x,y)		(((u64)(x) << 32) | (y))
@@ -166,10 +168,10 @@ static char* GetTitleExec(u64 tId, bool tweaked)
 	u32 size;
 	const u8 buffer[MAX_SIGNED_TMD_SIZE] ATTRIBUTE_ALIGN(32);
 
-	s32 ret = ES_GetStoredTMDSize(0x100000002, &size);
+	s32 ret = ES_GetStoredTMDSize(0x100000002LL, &size);
 	signed_blob* tmdRaw = (signed_blob*)buffer;
 
-	ret = ES_GetStoredTMD(0x100000002, tmdRaw, size);
+	ret = ES_GetStoredTMD(0x100000002LL, tmdRaw, size);
 	if (ret < 0)
 	{
 		printf("Error! ES_GetStoredTMDSize: Failed! (Error: %d)\n", ret);
@@ -479,6 +481,10 @@ bool skipRegionSafetyCheck = false;
 
 s32 Wad_Install(FILE *fp)
 {
+	//fseek(fp, 0, SEEK_END);
+	//s32 wadSize = ftell(fp);
+	//fseek(fp, 0, SEEK_CUR);
+	
 	SetPRButtons(false);
 	wadHeader   *header  = NULL;
 	signed_blob *p_certs = NULL, *p_crl = NULL, *p_tik = NULL, *p_tmd = NULL;
@@ -633,7 +639,13 @@ s32 Wad_Install(FILE *fp)
 		}
 		if(region != RegionLookupList[(tmd_data->title_version & 0x0F)])
 		{
-			printf("\n    I won't install the wrong regions SM\n");
+			printf("\n    I won't install the wrong regions SM by default.\n\n");
+
+			printf("\n    Are you region changing?\n");
+
+			printf("\n    If you're really sure what you're doing, next time\n");
+			printf("    select your device using Konami...\n\n");
+			
 			ret = -999;
 			goto err;
 		}
@@ -648,10 +660,14 @@ skipChecks:
 			}
 		}
 
-		if (!gForcedInstall && IsPriiloaderInstalled())
+		if (!gForcedInstall && AHBPROT_DISABLED && IsPriiloaderInstalled())
 		{
 			cleanupPriiloader = true;
 			printf("\n    Priiloader is installed next to the system menu.\n\n");
+			printf("    It is recommended to retain Priiloader as it can\n");
+			printf("    protect your console from being bricked.\n\n");
+
+
 			printf("    Press A to retain Priiloader or B to remove.");
 
 			u32 buttons = WaitButtons();
@@ -661,6 +677,7 @@ skipChecks:
 				retainPriiloader = (BackUpPriiloader() && CompareHashes(true));
 				if (retainPriiloader)
 				{
+					SetPriiloaderOption(true);
 					Con_ClearLine();
 					printf("\r[+] Priiloader will be retained.\n");
 					fflush(stdout);
@@ -685,10 +702,15 @@ skipChecks:
 
 			if (!retainPriiloader)
 			{
+				SetPriiloaderOption(false);
 				Con_ClearLine();
 				printf("\r[+] Priiloader will be removed.\n");
 				fflush(stdout);
 			}
+		}
+		else
+		{
+			SetPriiloaderOption(false);
 		}
 	}
 	
@@ -701,6 +723,12 @@ skipChecks:
 	/* Fix ticket */
 	__Wad_FixTicket(p_tik);
 
+	//if (!MenuTestDevice())
+	//{
+	//	ret = -996;
+	//	goto err;
+	//}
+		
 	printf("\t\t>> Installing ticket...");
 	fflush(stdout);
 
@@ -720,7 +748,8 @@ skipChecks:
 		goto err;
 	
 	/* Install contents */
-	for (cnt = 0; cnt < tmd_data->num_contents; cnt++) {
+	for (cnt = 0; cnt < tmd_data->num_contents; cnt++) 
+	{
 		tmd_content *content = &tmd_data->contents[cnt];
 
 		u32 idx = 0, len;
@@ -736,13 +765,15 @@ skipChecks:
 
 		/* Install content */
 		cfd = ES_AddContentStart(tmd_data->title_id, content->cid);
-		if (cfd < 0) {
+		if (cfd < 0) 
+		{
 			ret = cfd;
 			goto err;
 		}
 
 		/* Install content data */
-		while (idx < len) {
+		while (idx < len) 
+		{
 			u32 size;
 
 			/* Data length */
@@ -750,15 +781,25 @@ skipChecks:
 			if (size > BLOCK_SIZE)
 				size = BLOCK_SIZE;
 
+			//if (offset + size > wadSize)
+			//	size = wadSize - offset;
+
+			//printf("\n>> Read Offset: %X (%d) Length: %d/%d", offset, size, idx, len);
 			/* Read data */
 			ret = FSOPReadOpenFile(fp, &wadBuffer, offset, size);
 			if (ret != 1)
+			{
+				ES_AddContentFinish(cfd);
 				goto err;
-
+			}
+				
 			/* Install data */
 			ret = ES_AddContentData(cfd, wadBuffer, size);
 			if (ret < 0)
+			{
+				ret = ES_AddContentFinish(cfd);
 				goto err;
+			}
 
 			/* Increase variables */
 			idx    += size;
@@ -770,7 +811,7 @@ skipChecks:
 		if (ret < 0)
 			goto err;
 	}
-
+	
 	Con_ClearLine();
 
 	printf("\r\t\t>> Finishing installation...");
@@ -778,6 +819,7 @@ skipChecks:
 
 	/* Finish title install */
 	ret = ES_AddTitleFinish();
+
 	if (ret >= 0) 
 	{
 		printf(" OK!\n");
@@ -879,6 +921,11 @@ skipChecks:
 err:
 	printf("\n    ERROR! (ret = %d)\n", ret);
 
+	if (retainPriiloader)
+		SetPriiloaderOption(false);
+
+	if (ret == 0)
+		ret = -996;
 	/* Cancel install */
 	ES_AddTitleCancel();
 

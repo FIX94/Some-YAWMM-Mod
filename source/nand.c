@@ -354,6 +354,8 @@ s32 NANDGetNameList(const char* src, NameList** entries, s32* count)
 
 s32 NANDDumpFile(const char* src, const char* dst)
 {
+	printf("Dump file: %s\n", src);
+	
 	s32 fd = ISFS_Open(src, ISFS_OPEN_READ);
 	if (fd < 0)
 		return fd;
@@ -371,7 +373,6 @@ s32 NANDDumpFile(const char* src, const char* dst)
 	}
 	
 	FSOPDeleteFile(dst);
-
 	FILE* file = fopen(dst, "wb");
 
 	if (!file)

@@ -21,6 +21,7 @@
 #include "iospatch.h"
 #include "appboot.h"
 #include "fileops.h"
+#include "menu.h"
 
 /* NAND device list */
 nandDevice ndevList[] = 
@@ -41,6 +42,8 @@ static s32  gStart[MAX_DIR_LEVELS];
 static char gMenuRegion = '\0';
 static u16 gMenuVersion = 0;
 static u8 gSelected = 0;
+
+static bool gNeedPriiloaderOption = false;
 
 /* Macros */
 //#define NB_FAT_DEVICES		(sizeof(fdevList) / sizeof(fatDevice))
@@ -106,13 +109,17 @@ s32 __Menu_RetrieveList(char *inPath, fatFile **outbuf, u32 *outlen)
 		cnt++;
 	}
 
-	if (cnt > 0) {
+	if (cnt > 0) 
+	{
 		/* Allocate memory */
 		buffer = malloc(sizeof(fatFile) * cnt);
-		if (!buffer) {
+		if (!buffer) 
+		{
 			closedir(dir);
 			return -2;
 		}
+
+		memset(buffer, 0, sizeof(fatFile) * cnt);
 
 		/* Reset directory */
 		rewinddir(dir);
@@ -213,7 +220,9 @@ void Menu_SelectIOS(void)
 	qsort(iosVersion, iosCnt, sizeof(u8), __Menu_IsGreater);
 
 	if (gConfig.cIOSVersion < 0)
+	{
 		tmpVersion = CIOS_VERSION;
+	}
 	else
 	{
 		tmpVersion = (u8)gConfig.cIOSVersion;
@@ -223,7 +232,8 @@ void Menu_SelectIOS(void)
 	}
 
 	/* Set default version */
-	for (cnt = 0; cnt < iosCnt; cnt++) {
+	for (cnt = 0; cnt < iosCnt; cnt++) 
+	{
 		u8 version = iosVersion[cnt];
 
 		/* Custom IOS available */
@@ -277,26 +287,32 @@ void Menu_SelectIOS(void)
 		}
 	}
 
-
 	u8 version = iosVersion[selected];
 
 	if (IOS_GetVersion() != version) {
 		/* Shutdown subsystems */
+		FatUnmount();
 		Wpad_Disconnect();
-		//mload_close();
+
 
 		/* Load IOS */
-
-		if(!loadIOS(version)) Wpad_Init(), Menu_SelectIOS();
+		if (!loadIOS(version))
+		{
+			Wpad_Init();
+			Menu_SelectIOS();
+		}
 
 		/* Initialize subsystems */
 		Wpad_Init();
+		FatMount();
 	}
 }
 
 void Menu_FatDevice(void)
 {
 	FatMount();
+	if (gSelected >= FatGetDeviceCount())
+		gSelected = 0;
 
 	const u16 konamiCode[] = 
 	{
@@ -314,30 +330,34 @@ void Menu_FatDevice(void)
 		{
 			/* Clear console */
 			Con_Clear();
+			bool deviceOk = (FatGetDeviceCount() > 0);
 
-			if (!FatGetDeviceCount())
+			if (!deviceOk)
 			{
-				printf("\t[+] No source device: < %s >\n\n", FatGetDeviceName(gSelected));
+				printf("\t[+] No source devices found\n\n");
 			}
-
+			else
+			{
+				printf("\t>> Select source device: < %s >\n\n", FatGetDeviceName(gSelected));
+				printf("\t   Press LEFT/RIGHT to change the selected device.\n\n");
+				printf("\t   Press A button to continue.\n");
+			}
 			/* Selected device */
 			//printf("\tWii menu version: %d, region: %s\n\n", gMenuVersion, GetSysMenuRegionString(&gMenuRegion));
-			printf("\t>> Select source device: < %s >\n\n", FatGetDeviceName(gSelected));
-			printf("\t   Press LEFT/RIGHT to change the selected device.\n\n");
-			printf("\t   Press A button to continue.\n");
-			printf("\t   Press B button to remount source devices.\n");			
+			
+			printf("\t   Press 1 button to remount source devices.\n");			
 			printf("\t   Press HOME button to restart.\n\n");
 
 			if (skipRegionSafetyCheck)
 			{
 				printf("[+] WARNING: SM Region checks disabled!\n\n");
-				printf("\t   Press 1 button to reset.\n");
+				printf("\t   Press 2 button to reset.\n");
 			}
 				
 
 			u32 buttons = WaitButtons();
 
-			if (buttons & (WPAD_BUTTON_UP | WPAD_BUTTON_DOWN | WPAD_BUTTON_RIGHT | WPAD_BUTTON_LEFT | WPAD_BUTTON_A | WPAD_BUTTON_B)) 
+			if (deviceOk && buttons & (WPAD_BUTTON_UP | WPAD_BUTTON_DOWN | WPAD_BUTTON_RIGHT | WPAD_BUTTON_LEFT | WPAD_BUTTON_A | WPAD_BUTTON_B))
 			{
 				if (!skipRegionSafetyCheck)
 				{
@@ -347,16 +367,12 @@ void Menu_FatDevice(void)
 						codePosition = 0;
 				}
 			}
-			if (buttons & WPAD_BUTTON_LEFT) 
+			if (deviceOk && buttons & WPAD_BUTTON_LEFT)
 			{
 				if ((s8)(--gSelected) < 0)
 					gSelected = FatGetDeviceCount() - 1;
 			}
-			else if (buttons & WPAD_BUTTON_1 && skipRegionSafetyCheck)
-			{
-				skipRegionSafetyCheck = false;
-			}
-			else if (buttons & WPAD_BUTTON_RIGHT) 
+			else if (deviceOk && buttons & WPAD_BUTTON_RIGHT)
 			{
 				if ((++gSelected) >= FatGetDeviceCount())
 					gSelected = 0;
@@ -365,7 +381,7 @@ void Menu_FatDevice(void)
 			{
 				Restart();
 			}
-			else if (buttons & WPAD_BUTTON_B && !codePosition)
+			else if (buttons & WPAD_BUTTON_1)
 			{
 				printf("\t\t[-] Mounting devices.");
 				usleep(500000);
@@ -380,7 +396,11 @@ void Menu_FatDevice(void)
 				gSelected = 0;
 				usleep(500000);
 			}
-			else if (buttons & WPAD_BUTTON_A) 
+			else if (buttons & WPAD_BUTTON_2 && skipRegionSafetyCheck)
+			{
+				skipRegionSafetyCheck = false;
+			}
+			else if (deviceOk && buttons & WPAD_BUTTON_A)
 			{
 				if (codePosition == sizeof(konamiCode) / sizeof(konamiCode[0])) 
 				{
@@ -388,7 +408,6 @@ void Menu_FatDevice(void)
 					printf("[+] Disabled SM region checks\n");
 					sleep(3);
 				}
-				break;
 			}
 		}
 	}
@@ -509,7 +528,8 @@ int Menu_BatchProcessWads(fatFile *files, int fileCount, char *inFilePath, int i
 			printf("    Do you want to proceed?\n");
 		}
 		else {
-			printf("[+] %d file%s marked for installation and %d file%s for uninstallation.\n", installCnt, (installCnt == 1) ? "" : "s", uninstallCnt, (uninstallCnt == 1) ? "" : "s");
+			printf("[+] %d file%s marked for installation.\n", installCnt, (installCnt == 1) ? "" : "s");
+			printf("[+] %d file%s marked for uninstallation.\n", uninstallCnt, (uninstallCnt == 1) ? "" : "s");
 			printf("    Do you want to proceed?\n");
 		}
 
@@ -534,30 +554,52 @@ int Menu_BatchProcessWads(fatFile *files, int fileCount, char *inFilePath, int i
 	{
 		fatFile *thisFile = &files[count];
 
-		if ((thisFile->install == 1) | (thisFile->install == 2)) {
-			int mode = thisFile->install;
+		int mode = thisFile->install;
+		if (mode) 
+		{
 			Con_Clear();
+			printf("[+] Processing WAD: %d/%d...\n\n", (errors + success + 1), (installCnt + uninstallCnt));
 			printf("[+] Opening \"%s\", please wait...\n\n", thisFile->filename);
 
 			sprintf(gTmpFilePath, "%s/%s", inFilePath, thisFile->filename);
 
 			FILE *fp = fopen(gTmpFilePath, "rb");
-			if (!fp) {
+			if (!fp) 
+			{
 				printf(" ERROR!\n");
 				errors += 1;
 				continue;
-				}
-
-			printf("[+] %s WAD, please wait...\n", (mode == 2) ? "Uninstalling" : "Installing");
-			if (mode == 2) {
+			}
+			
+			if (mode == 2) 
+			{
+				printf(">> Uninstalling WAD, please wait...\n\n");
 				ret = Wad_Uninstall(fp);
 			}
-			else {
+			else 
+			{
+				printf(">> Installing WAD, please wait...\n\n");
 				ret = Wad_Install(fp);
 			}
 
-			if (ret < 0) errors += 1;
-			else success += 1;
+			if (ret < 0) 
+			{
+				if ((errors + success + 1) < (installCnt + uninstallCnt))
+				{
+					s32 i;
+					for (i = 5; i > 0; i--)
+					{
+						printf("\r   Continue in: %d", i);
+						sleep(1);
+					}
+				}
+
+				errors++;
+			}
+			else 
+			{
+				success++;
+			}
 
 			thisFile->installstate = ret;
 
@@ -566,7 +608,7 @@ int Menu_BatchProcessWads(fatFile *files, int fileCount, char *inFilePath, int i
 		}
 	}
 
-	WiiLightControl (WII_LIGHT_OFF);
+	WiiLightControl(WII_LIGHT_OFF);
 
 	printf("\n");
 	printf("    %d titles succeeded and %d failed...\n", success, errors);
@@ -583,24 +625,52 @@ int Menu_BatchProcessWads(fatFile *files, int fileCount, char *inFilePath, int i
 		{
 			Con_Clear();
 
-			int i=0;
+			int i = 0;
 			for (count = 0; count < fileCount; count++)
 			{
 				fatFile *thisFile = &files[count];
 
-				if (thisFile->installstate <0)
+				if (thisFile->installstate < 0)
 				{
 					char str[41];
 					strncpy(str, thisFile->filename, 40); //Only 40 chars to fit the screen
 					str[40]=0;
 					i++;
-					if(thisFile->installstate == -999) printf("    %s BRICK BLOCKED\n", str);
-					else if(thisFile->installstate == -998) printf("    %s Skipped\n", str);
-					else if(thisFile->installstate == -106) printf("    %s Not installed?\n", str);
-					else if(thisFile->installstate == -1036 ) printf("    %s Needed IOS missing\n", str);
-					else if(thisFile->installstate == -4100 ) printf("    %s No trucha bug?\n", str);
-					else printf("    %s error %d\n", str, thisFile->installstate);
-					if( i == 17 )
+					
+					
+					switch (thisFile->installstate)
+					{
+						case -106:
+						{
+							printf("    %s Not installed?\n", str);
+						} break;
+						case -996:
+						{
+							printf("    %s Read error\n", str);
+						} break;
+						case -998:
+						{
+							printf("    %s Skipped\n", str);
+						} break;
+						case -999:
+						{
+							printf("    %s BRICK BLOCKED\n", str);
+						} break;
+						case -1036:
+						{
+							printf("    %s Needed IOS missing\n", str);
+						} break;
+						case -4100:
+						{
+							printf("    %s No trucha bug?\n", str);
+						} break;
+						default:
+						{
+							printf("    %s error %d\n", str, thisFile->installstate);
+						} break;
+					}
+					
+					if(i == 17)
 					{
 						printf("\n    Press any button to continue\n");
 						WaitButtons();
@@ -610,8 +680,30 @@ int Menu_BatchProcessWads(fatFile *files, int fileCount, char *inFilePath, int i
 			}
 		}
 	}
-	printf("\n    Press any button to continue...\n");
-	WaitButtons();
+
+	if (gNeedPriiloaderOption)
+	{
+		printf("\n    Priiloader has been retained, but all hacks were reset.\n\n");
+		printf("    Press A launch Priiloader now.\n");
+		printf("    Press any other button to continue...\n");
+
+		u32 buttons = WaitButtons();
+		
+		if (buttons & WPAD_BUTTON_A)
+		{
+			gNeedPriiloaderOption = false;
+			*(vu32*)0x8132FFFB = 0x4461636f;
+			DCFlushRange((void*)0x8132FFFB, 4);
+			SYS_ResetSystem(SYS_RETURNTOMENU, 0, 0);
+		}
+
+		gNeedPriiloaderOption = false;
+	}
+	else
+	{
+		printf("\n    Press any button to continue...\n");
+		WaitButtons();
+	}
 
 	return 1;
 }
@@ -741,33 +833,71 @@ void Menu_WadManage(fatFile *file, char *inFilePath)
 	/* Generate filepath */
 	// sprintf(filepath, "%s:" WAD_DIRECTORY "/%s", fdev->mount, file->filename);
 	sprintf(gTmpFilePath, "%s/%s", inFilePath, file->filename); // wiiNinja
-	if(file->iswad) {
-	/* Open WAD */
-	fp = fopen(gTmpFilePath, "rb");
-	if (!fp) {
-		printf(" ERROR!\n");
-		goto out;
-	} else
-		printf(" OK!\n\n");
+	if(file->iswad) 
+	{
+		/* Open WAD */
+		fp = fopen(gTmpFilePath, "rb");
+		if (!fp) 
+		{
+			printf(" ERROR!\n");
+			goto out;
+		} 
+		else
+		{
+			printf(" OK!\n\n");
+		}
 
-	printf("[+] %s WAD, please wait...\n", (!mode) ? "Installing" : "Uninstalling");
+		printf("[+] %s WAD, please wait...\n", (!mode) ? "Installing" : "Uninstalling");
 
-	/* Do install/uninstall */
-	WiiLightControl (WII_LIGHT_ON);
-	if (!mode)
-		Wad_Install(fp);
-	else
-		Wad_Uninstall(fp);
-	WiiLightControl (WII_LIGHT_OFF);
+		/* Do install/uninstall */
+		WiiLightControl (WII_LIGHT_ON);
+		
+		if (!mode)
+		{
+			Wad_Install(fp);
+			WiiLightControl(WII_LIGHT_OFF);
+
+			if (gNeedPriiloaderOption)
+			{
+				printf("\n    Priiloader has been retained, but all hacks were reset.\n\n");
+				printf("    Press A launch Priiloader now.\n");
+				printf("    Press any other button to continue...\n");
+
+				u32 buttons = WaitButtons();
+				
+				if (fp)
+					fclose(fp);
+				
+				if (buttons & WPAD_BUTTON_A)
+				{
+					gNeedPriiloaderOption = false;
+					*(vu32*)0x8132FFFB = 0x4461636f;
+					DCFlushRange((void*)0x8132FFFB, 4);
+					SYS_ResetSystem(SYS_RETURNTOMENU, 0, 0);
+				}
+
+				gNeedPriiloaderOption = false;
+
+				return;
+			}
+		}
+		else
+		{
+
+			Wad_Uninstall(fp);
+			WiiLightControl(WII_LIGHT_OFF);
+		}
 	}
-	else {
+	else 
+	{
 		printf("launch dol/elf here \n");
 		
-		if(LoadApp(inFilePath, file->filename)) {
+		if(LoadApp(inFilePath, file->filename)) 
 			LaunchApp();
-		}
+
 		return;
 	}
+
 out:
 	/* Close file */
 	if (fp)
@@ -860,6 +990,7 @@ getList:
 	{
 		fatFile *file = &fileList[counter];
 		file->install = 0;
+		file->installstate = 0;
 	}
 
 	for (;;)
@@ -927,7 +1058,7 @@ getList:
 
 			/** Controls **/
 		u32 buttons = WaitButtons();
-
+			
 		/* DPAD buttons */
 		if (buttons & WPAD_BUTTON_UP) 
 		{
@@ -967,13 +1098,13 @@ getList:
 				{
 					installCnt = 0;
 					int i = 0;
-					while( i < fileCnt)
+					while(i < fileCnt)
 					{
 						fatFile *file = &fileList[i];
 						if (((file->isdir) == false) && (file->install == 0)) 
 						{
 							file->install = 1;
-							installCnt += 1;
+							installCnt++;
 						}
 						else if (((file->isdir) == false) && (file->install == 1)) 
 						{
@@ -1026,7 +1157,7 @@ getList:
 					installCnt = 0;
 					int i = 0;
 			  
-					while( i < fileCnt)
+					while(i < fileCnt)
 					{
 						fatFile *file = &fileList[i];
 						if (((file->isdir) == false) && (file->install == 0)) 
@@ -1066,7 +1197,7 @@ getList:
 					else if (((file->isdir) == false) && (file->install == 2)) 
 					{
 						file->install = 0;
-						uninstallCnt -= 1;
+						uninstallCnt--;
 					}
 			 
 					selected++;
@@ -1155,6 +1286,7 @@ getList:
 							{
 								fatFile *temp = &fileList[counter];
 								temp->install = 0;
+								temp->installstate = 0;
 							}
 
 							installCnt = 0;
@@ -1165,7 +1297,7 @@ getList:
 				//else use standard wadmanage menu - Leathl
 				else 
 				{
-					tmpCurPath = PeekCurrentDir ();
+					tmpCurPath = PeekCurrentDir();
 					if (tmpCurPath != NULL)
 						Menu_WadManage(tmpFile, tmpCurPath);
 				}
@@ -1229,11 +1361,13 @@ void Menu_Loop(void)
 	ndev = &ndevList[0];
 
 	/* NAND device menu */
-	if ((iosVersion == CIOS_VERSION || iosVersion == 250) && IOS_GetRevision() >13)
+	if ((iosVersion == CIOS_VERSION || iosVersion == 250) && IOS_GetRevision() > 13)
 	{
 		Menu_NandDevice();
 	}
-	for (;;) {
+	
+	for (;;) 
+	{
 		/* FAT device menu */
 		Menu_FatDevice();
 
@@ -1242,8 +1376,12 @@ void Menu_Loop(void)
 	}
 }
 
-// Start of wiiNinja's added routines
+void SetPriiloaderOption(bool enabled)
+{
+	gNeedPriiloaderOption = enabled;
+}
 
+// Start of wiiNinja's added routines
 int PushCurrentDir (char *dirStr, int Selected, int Start)
 {
     int retval = 0;
