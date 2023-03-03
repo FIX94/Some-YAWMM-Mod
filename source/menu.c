@@ -323,6 +323,10 @@ void Menu_FatDevice(void)
 	int codePosition = 0;
 	extern bool skipRegionSafetyCheck;
 
+	GetSysMenuRegion(&gMenuVersion, &gMenuRegion);
+	bool havePriiloader = IsPriiloaderInstalled();
+	u32 ios = *((u32*)0x80003140);
+
 	/* Select source device */
 	if (gConfig.fatDeviceIndex < 0)
 	{
@@ -331,6 +335,12 @@ void Menu_FatDevice(void)
 			/* Clear console */
 			Con_Clear();
 			bool deviceOk = (FatGetDeviceCount() > 0);
+
+			printf("\tIOS %d v%d, System menu: %s%c %s\n\n", ((ios >> 16) & 0xFF), (ios & 0xFFFF), 
+				GetSysMenuVersionString(gMenuVersion), gMenuRegion > 0 ? gMenuRegion : ' ', GetSysMenuRegionString(gMenuRegion));
+			printf("\tAHB access: %s\n", AHBPROT_DISABLED ? "Yes" : "No");
+			printf("\tPriiloader: %s\n\n", havePriiloader ? "Installed" : "Not installed");
+
 
 			if (!deviceOk)
 			{
@@ -408,6 +418,8 @@ void Menu_FatDevice(void)
 					printf("[+] Disabled SM region checks\n");
 					sleep(3);
 				}
+
+				break;
 			}
 		}
 	}
@@ -418,7 +430,7 @@ void Menu_FatDevice(void)
 			gSelected = gConfig.fatDeviceIndex;
 	}
 
-	printf("[+] Selected source device: %s.", FatGetDeviceName(gSelected));
+	printf("[+] Selected source device: %s.\n", FatGetDeviceName(gSelected));
 	sleep(2);
 }
 
@@ -893,7 +905,11 @@ void Menu_WadManage(fatFile *file, char *inFilePath)
 		printf("launch dol/elf here \n");
 		
 		if(LoadApp(inFilePath, file->filename)) 
+		{
+			FatUnmount();
+			Wpad_Disconnect();
 			LaunchApp();
+		}
 
 		return;
 	}
@@ -931,6 +947,7 @@ void Menu_WadList(void)
         return;
     }
 
+	Con_Clear();
 	printf("[+] Retrieving file list...");
 	fflush(stdout);
 
@@ -1356,7 +1373,6 @@ void Menu_Loop(void)
 
 	/* Retrieve IOS version */
 	iosVersion = IOS_GetVersion();
-	GetSysMenuRegion(&gMenuVersion, &gMenuRegion);
 
 	ndev = &ndevList[0];
 

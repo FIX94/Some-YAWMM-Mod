@@ -212,7 +212,6 @@ int ReadConfigFile(char* configFilePath)
 	char* tmpStr = malloc(MAX_FILE_PATH_LEN);
 	char tmpOutStr[40], path[128];
 	s32 i;
-	s32 ret = -1;
 	bool found = false;
 
 	if (tmpStr == NULL)
@@ -230,8 +229,6 @@ int ReadConfigFile(char* configFilePath)
 	
 	if (!found)
 	{
-		printf(" ERROR! (ret = %d)\n", ret);
-		// goto err;
 		retval = -1;
 	}
 	else

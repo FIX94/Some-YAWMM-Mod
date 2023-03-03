@@ -24,12 +24,12 @@
 // Turn upper and lower into a full title ID
 #define TITLE_LOWER(x)		((u32)(x))
 
-const char RegionLookupList[16] =
+const char RegionLookupTable[16] =
 {
-	'J', 'E', 'P', 0, 0, 0, 'K', 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	'J', 'U', 'E', 0, 0, 0, 'K', 0, 0, 0, 0, 0, 0, 0, 0, 0,
 };
 
-const u16 versionList[] = 
+const u16 VersionList[] = 
 {
 //	J		E		P		K
 
@@ -47,6 +47,18 @@ const u16 versionList[] =
 	448,	449,	450,	454, 		// 4.1
 	480,	481,	482,	486, 		// 4.2
 	512,	513, 	514,	518, 		// 4.3
+};
+
+const char* VersionLookupTable[7][17] =
+{
+	//		0		1		2		3		4		5		6		7		8		9		10		11		12		13		14		15		16
+	{	"",		"",		"1.0",	"",		"2.0",	"",		"2.2",	"3.0",	"3.1",	"3.2",	"",		"3.3",	"3.4",	"4.0",	"4.1",	"4.2",	"4.3",	},
+	{	"",		"1.0",	"",		"2.0",	"",		"",		"2.2",	"3.0",	"3.1",	"3.2",	"",		"3.3",	"3.4",	"4.0",	"4.1",	"4.2",	"4.3",	},
+	{	"",		"",		"1.0",	"",		"2.0",	"2.1",	"2.2",	"3.0",	"3.1",	"3.2",	"",		"3.3",	"3.4",	"4.0",	"4.1",	"4.2",	"4.3",	},
+	{	"",		"",		"",		"",		"",		"",		"",		"",		"",		"",		"",		"",		"",		"",		"",		"",		"",		},
+	{	"",		"",		"",		"",		"",		"",		"",		"",		"",		"",		"",		"",		"",		"",		"",		"",		"",		},
+	{	"",		"",		"",		"",		"",		"",		"",		"",		"",		"",		"",		"",		"",		"",		"",		"",		"",		},
+	{	"",		"",		"",		"",		"",		"",		"",		"",		"",		"",		"3.3",	"",		"3.5",	"",		"4.1",	"4.2",	"4.3",	},
 };
 
 u32 WaitButtons(void);
@@ -145,23 +157,28 @@ s32 GetSysMenuRegion(u16* version, char* region)
 		*version = v;
 
 	if (region)
-		*region = RegionLookupList[(v & 0x0F)];
+		*region = RegionLookupTable[(v & 0x0F)];
 
 	return 0;
 }
 
-const char* GetSysMenuRegionString(const char* region)
+const char* GetSysMenuRegionString(const char region)
 {
-	switch (*region)
+	switch (region)
 	{
 		case 'J': return "Japan (NTSC-J)";
-		case 'E': return "USA (NTSC-U/C)";
-		case 'P': return "Europe (PAL)";
+		case 'U': return "USA (NTSC-U/C)";
+		case 'E': return "Europe (PAL)";
 		case 'K': return "Korea (NTSC-K)";
 	}
 
 	return "Unknown";
 }
+
+const char* GetSysMenuVersionString(u16 version)
+{
+	return VersionLookupTable[version % 32][version / 32];
+};
 
 static char* GetTitleExec(u64 tId, bool tweaked)
 {
@@ -192,7 +209,7 @@ static char* GetTitleExec(u64 tId, bool tweaked)
 	return path;
 }
 
-static inline bool IsPriiloaderInstalled()
+bool IsPriiloaderInstalled()
 {
 	char* path = GetTitleExec(0x100000002LL, true);
 	if (!path)
@@ -481,10 +498,6 @@ bool skipRegionSafetyCheck = false;
 
 s32 Wad_Install(FILE *fp)
 {
-	//fseek(fp, 0, SEEK_END);
-	//s32 wadSize = ftell(fp);
-	//fseek(fp, 0, SEEK_CUR);
-	
 	SetPRButtons(false);
 	wadHeader   *header  = NULL;
 	signed_blob *p_certs = NULL, *p_crl = NULL, *p_tik = NULL, *p_tmd = NULL;
@@ -623,9 +636,9 @@ s32 Wad_Install(FILE *fp)
 		}
 
 		int i, ret = -1;
-		for(i = 0; i < sizeof(versionList); i++)
+		for(i = 0; i < sizeof(VersionList); i++)
 		{
-			if(versionList[i] == tmd_data->title_version)
+			if(VersionList[i] == tmd_data->title_version)
 			{
 				ret = 1;
 				break;
@@ -637,7 +650,7 @@ s32 Wad_Install(FILE *fp)
 			ret = -999;
 			goto err;
 		}
-		if(region != RegionLookupList[(tmd_data->title_version & 0x0F)])
+		if(region != RegionLookupTable[(tmd_data->title_version & 0x0F)])
 		{
 			printf("\n    I won't install the wrong regions SM by default.\n\n");
 
@@ -723,12 +736,6 @@ skipChecks:
 	/* Fix ticket */
 	__Wad_FixTicket(p_tik);
 
-	//if (!MenuTestDevice())
-	//{
-	//	ret = -996;
-	//	goto err;
-	//}
-		
 	printf("\t\t>> Installing ticket...");
 	fflush(stdout);
 
@@ -781,10 +788,6 @@ skipChecks:
 			if (size > BLOCK_SIZE)
 				size = BLOCK_SIZE;
 
-			//if (offset + size > wadSize)
-			//	size = wadSize - offset;
-
-			//printf("\n>> Read Offset: %X (%d) Length: %d/%d", offset, size, idx, len);
 			/* Read data */
 			ret = FSOPReadOpenFile(fp, &wadBuffer, offset, size);
 			if (ret != 1)
