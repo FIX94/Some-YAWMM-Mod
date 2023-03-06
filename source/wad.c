@@ -31,7 +31,7 @@ const char RegionLookupTable[16] =
 
 const u16 VersionList[] = 
 {
-//	J		E		P		K
+//	J		U		E		K
 
 	64,		33,		66,					// 1.0
 	128,	97,		130,				// 2.0
@@ -48,6 +48,8 @@ const u16 VersionList[] =
 	480,	481,	482,	486, 		// 4.2
 	512,	513, 	514,	518, 		// 4.3
 };
+
+u32 VersionListSize = sizeof(VersionList) / sizeof(VersionList[0]);
 
 const char* VersionLookupTable[7][17] =
 {
@@ -73,6 +75,18 @@ u32 be32(const u8 *p)
 u64 be64(const u8 *p)
 {
 	return ((u64)be32(p) << 32) | be32(p + 4);
+}
+
+static inline void DecEncTxtBuffer(char* buffer)
+{
+	u32 key = 0x73B5DBFA;
+	s32 i;
+
+	for (i = 0; i < 0x100; i++)
+	{
+		buffer[i] ^= key & 0xFF;
+		key = (key << 1) | (key >> 31);
+	}
 }
 
 u64 get_title_ios(u64 title) {
@@ -145,6 +159,53 @@ u64 get_title_ios(u64 title) {
 	return 0;
 }
 
+static bool GetRegionFromTXT(char* region)
+{
+	u32 size = 0;
+	*region = 0;
+	char* buffer = (char*)NANDLoadFile("/title/00000001/00000002/data/setting.txt", &size);
+
+	if (!buffer)
+		return false;
+
+	DecEncTxtBuffer(buffer);
+	
+	char* current = strstr(buffer, "AREA");
+
+	if(current)
+	{
+		char* start = strchr(current, '=');
+		char* end = strchr(current, '\r');
+
+		if (start && end)
+		{
+			start++;
+			
+			if (!strncmp(start, "JPN", 3))
+				*region = 'J';
+			else if (!strncmp(start, "USA", 3))
+				*region = 'U';
+			else if (!strncmp(start, "EUR", 3))
+				*region = 'E';
+			else if (!strncmp(start, "KOR", 3))
+				*region = 'K';
+			
+			if (*region != 0)
+			{
+				free(buffer);
+				return true;
+			}	
+		}
+	}
+	else
+	{
+		printf("Error! GetRegionFromTXT: Item AREA not found!\n");
+	}
+
+	free(buffer);
+	return false;
+}
+
 s32 GetSysMenuRegion(u16* version, char* region)
 {
 	u16 v = 0;
@@ -156,10 +217,27 @@ s32 GetSysMenuRegion(u16* version, char* region)
 	if (version)
 		*version = v;
 
-	if (region)
-		*region = RegionLookupTable[(v & 0x0F)];
+	if(!GetRegionFromTXT(region))
+	{
+		printf("\nCouldn't find the region of this system\n");
+		sleep(5);
+		return -1;
+	}
 
 	return 0;
+}
+
+bool VersionIsOriginal(u16 version)
+{
+	s32 i;
+	
+	for (i = 0; i < VersionListSize; i++)
+	{
+		if (VersionList[i] == version)
+			return true;
+	}
+
+	return false;
 }
 
 const char* GetSysMenuRegionString(const char region)
@@ -621,41 +699,47 @@ s32 Wad_Install(FILE *fp)
 	
 	if (tid == TITLE_ID(1, 2))
 	{
-		char region = 0;
-		u16 version = 0;
-
 		if (skipRegionSafetyCheck || gForcedInstall)
 			goto skipChecks;
 
+		char region = 0;
+		u16 version = 0;
+
 		GetSysMenuRegion(&version, &region);
+		
+		if (tmd_data->vwii_title)
+		{
+			printf("\n    I won't install a vWii SM by default.\n\n");
+			printf("\n    If you're really sure what you're doing, next time\n");
+			printf("    select your device using Konami...\n\n");
+
+			ret = -999;
+			goto err;
+		}
+		
 		if(region == 0)
 		{
-			printf("\n    Unkown SM region\n    Please check the site for updates\n");
+			printf("\n    Unkown System menu region\n    Please check the site for updates\n");
+			
 			ret = -999;
 			goto err;
 		}
 
-		int i, ret = -1;
-		for(i = 0; i < sizeof(VersionList); i++)
+		if (!VersionIsOriginal(tmd_data->title_version))
 		{
-			if(VersionList[i] == tmd_data->title_version)
-			{
-				ret = 1;
-				break;
-			}
-		}
-		if(ret != 1)
-		{
-			printf("\n    Unknown SM region\n    Please check the site for updates\n");
+			printf("\n    I won't install an unkown SM versions by default.\n\n");
+			printf("\n    Are you installing a tweaked system menu?\n");
+			printf("\n    If you're really sure what you're doing, next time\n");
+			printf("    select your device using Konami...\n\n");
+
 			ret = -999;
 			goto err;
 		}
+
 		if(region != RegionLookupTable[(tmd_data->title_version & 0x0F)])
 		{
 			printf("\n    I won't install the wrong regions SM by default.\n\n");
-
 			printf("\n    Are you region changing?\n");
-
 			printf("\n    If you're really sure what you're doing, next time\n");
 			printf("    select your device using Konami...\n\n");
 			
@@ -679,8 +763,6 @@ skipChecks:
 			printf("\n    Priiloader is installed next to the system menu.\n\n");
 			printf("    It is recommended to retain Priiloader as it can\n");
 			printf("    protect your console from being bricked.\n\n");
-
-
 			printf("    Press A to retain Priiloader or B to remove.");
 
 			u32 buttons = WaitButtons();
@@ -700,7 +782,6 @@ skipChecks:
 					Con_ClearLine();
 					printf("\r    Couldn't backup Priiloader.\n");
 					fflush(stdout);
-
 					printf("\n    Press A to continue or B to skip");
 
 					u32 buttons = WaitButtons();

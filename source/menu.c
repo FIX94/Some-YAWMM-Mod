@@ -39,14 +39,11 @@ static u8 gDirLevel = 0;
 static char gDirList [MAX_DIR_LEVELS][MAX_FILE_PATH_LEN];
 static s32  gSeleted[MAX_DIR_LEVELS];
 static s32  gStart[MAX_DIR_LEVELS];
-static char gMenuRegion = '\0';
-static u16 gMenuVersion = 0;
 static u8 gSelected = 0;
 
 static bool gNeedPriiloaderOption = false;
 
 /* Macros */
-//#define NB_FAT_DEVICES		(sizeof(fdevList) / sizeof(fatDevice))
 #define NB_NAND_DEVICES		(sizeof(ndevList) / sizeof(nandDevice))
 
 // Local prototypes: wiiNinja
@@ -70,7 +67,6 @@ int __Menu_IsGreater(const void *p1, const void *p2)
 
 	return (n1 > n2) ? 1 : -1;
 }
-
 
 int __Menu_EntryCmp(const void *p1, const void *p2)
 {
@@ -323,7 +319,10 @@ void Menu_FatDevice(void)
 	int codePosition = 0;
 	extern bool skipRegionSafetyCheck;
 
-	GetSysMenuRegion(&gMenuVersion, &gMenuRegion);
+	char region = '\0';
+	u16 version = 0;
+	
+	GetSysMenuRegion(&version, &region);
 	bool havePriiloader = IsPriiloaderInstalled();
 	u32 ios = *((u32*)0x80003140);
 
@@ -336,11 +335,14 @@ void Menu_FatDevice(void)
 			Con_Clear();
 			bool deviceOk = (FatGetDeviceCount() > 0);
 
-			printf("\tIOS %d v%d, System menu: %s%c %s\n\n", ((ios >> 16) & 0xFF), (ios & 0xFFFF), 
-				GetSysMenuVersionString(gMenuVersion), gMenuRegion > 0 ? gMenuRegion : ' ', GetSysMenuRegionString(gMenuRegion));
+			if (VersionIsOriginal(version))
+				printf("\tIOS %d v%d, System menu: %s%c %s\n\n", ((ios >> 16) & 0xFF), (ios & 0xFFFF), GetSysMenuVersionString(version), region, GetSysMenuRegionString(region));
+			else
+				printf("\tIOS %d v%d, System menu: Unknown %s\n\n", ((ios >> 16) & 0xFF), (ios & 0xFFFF), GetSysMenuRegionString(region));
+			
+			
 			printf("\tAHB access: %s\n", AHBPROT_DISABLED ? "Yes" : "No");
 			printf("\tPriiloader: %s\n\n", havePriiloader ? "Installed" : "Not installed");
-
 
 			if (!deviceOk)
 			{
@@ -360,7 +362,7 @@ void Menu_FatDevice(void)
 
 			if (skipRegionSafetyCheck)
 			{
-				printf("[+] WARNING: SM Region checks disabled!\n\n");
+				printf("[+] WARNING: SM region and version checks disabled!\n\n");
 				printf("\t   Press 2 button to reset.\n");
 			}
 				
@@ -415,7 +417,7 @@ void Menu_FatDevice(void)
 				if (codePosition == sizeof(konamiCode) / sizeof(konamiCode[0])) 
 				{
 					skipRegionSafetyCheck = true;
-					printf("[+] Disabled SM region checks\n");
+					printf("[+] Disabled SM region and version checks\n");
 					sleep(3);
 				}
 

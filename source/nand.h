@@ -34,10 +34,4 @@ s32 NANDBackUpFile(const char* src, const char* dst, u32* size);
 s32 NANDGetFileSize(const char* path, u32* size);
 s32 NANDDeleteFile(const char* path);
 
-#if 0
-s32 NANDGetNameList(const char* src, NameList** entries, s32* count);
-s32 NANDDumpFile(const char* src, const char* dst);
-s32 NANDDumpFolder(const char* src, const char* dst);
-#endif
-
 #endif
