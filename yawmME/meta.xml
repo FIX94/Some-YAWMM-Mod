@@ -17,7 +17,7 @@ Press the "1" key to enter the extension menu
 A "+" before the name means the WAD will be installed
 A "-" before the name means the WAD will be uninstalled
 
-To temporarily disable System Menu Region checks\protection in order region change or overwrite a custom System Menu, enter the KONAMI code instead of A when selecting your device. This should be done sparingly and only if you know what you are doing.
+To temporarily disable System Menu Region checks\protection in order region change or install a custom System Menu version, enter the Konami code instead of A when selecting your device. This should be done sparingly and only if you know what you are doing.
 </long_description>
 <ahb_access/>
 </app>
